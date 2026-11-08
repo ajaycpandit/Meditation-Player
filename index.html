@@ -335,6 +335,21 @@ function saveCfg(mutator){
   return run.catch(e => { toast('Save failed: ' + e.message, 4500); return null; });
 }
 
+/* Move an item from number `from` to `to`. If `to` is taken, the two swap.
+   Every profile's playlists are rewritten so they keep pointing at the same files. */
+function renumberItem(cfg, from, to){
+  const a = cfg.items.find(i => i.num === from);
+  if (!a) throw new Error(`#${from} is not in the library`);
+  if (from === to) return true;
+  const b = cfg.items.find(i => i.num === to);
+  a.num = to;
+  if (b) b.num = from;
+  const map = n => n === from ? to : (b && n === to) ? from : n;
+  cfg.profiles.forEach(p => p.playlists.forEach(pl => { pl.items = pl.items.map(map); }));
+  cfg.nextNumber = Math.max(cfg.nextNumber, to + 1);
+  return true;
+}
+
 /* ---------- library sync ---------- */
 function applySync(cfg, files){
   let added = 0, changed = false;
@@ -365,7 +380,7 @@ async function syncFolder(quiet){
     const probe = applySync(structuredClone(S.cfg), files);
     if (probe.changed){
       const r = await saveCfg(cfg => applySync(cfg, files));
-      if (r && (!quiet || r.added)) toast(r.added ? `Added ${r.added} new video${r.added > 1 ? 's' : ''}` : 'Library updated');
+      if (r && (!quiet || r.added)) toast(r.added ? `Added ${r.added} new file${r.added > 1 ? 's' : ''}` : 'Library updated');
     } else if (!quiet) toast('Library is up to date');
   } catch (e){
     S.lastScan = { error: e.message, at: new Date() };
@@ -605,6 +620,7 @@ function libRows(){
   return items.map(it => itemRow(it, `
     <button class="btn sm" data-act="playone" data-n="${it.num}" ${it.missing ? 'disabled' : ''} title="Play now">▶</button>
     <button class="btn sm" data-act="enqueue" data-n="${it.num}" ${it.missing ? 'disabled' : ''} title="Add to queue">＋</button>
+    <button class="btn sm" data-act="renumber" data-n="${it.num}" title="Change number">#</button>
     <button class="btn sm" data-act="rename" data-n="${it.num}" title="Rename">✎</button>
     ${it.type === 'youtube' || it.missing ? `<button class="btn sm danger" data-act="remove" data-n="${it.num}" title="Remove">✕</button>` : ''}`)).join('')
     || '<li class="mute">No videos match.</li>';
@@ -619,7 +635,7 @@ function viewLibrary(){
       <button class="btn" data-act="sync" ${S.syncing ? 'disabled' : ''}>${S.syncing ? 'Syncing…' : '↻ Sync Drive folder'}</button></div>
     <ul class="list" id="librows">${libRows()}</ul>
     ${scanInfo()}
-    <p class="mute" style="font-size:.85rem">New video and audio files (.mp4, .m4a, .mp3 …) added to the Drive folder get the next number when you sync. Numbers never change or get reused.</p>
+    <p class="mute" style="font-size:.85rem">New video and audio files (.mp4, .m4a, .mp3 …) added to the Drive folder get the next number when you sync. Numbers only change when you change them with the # button; playlists follow automatically.</p>
   </div>`;
 }
 function scanInfo(){
@@ -778,6 +794,29 @@ document.addEventListener('click', async e => {
       const it = itemByNum(n);
       if (!S.queue.length) playQueue([n], 'Queue');
       else { S.queue.push(it); renderPlayer(); toast(`#${n} added to queue`); }
+      break;
+    }
+    case 'renumber': {
+      const it = itemByNum(n);
+      const ans = prompt(`New number for "${it.title}" (currently #${n})`, n);
+      if (ans == null || !ans.trim()) return;
+      const to = Number(ans.trim());
+      if (!Number.isInteger(to) || to < 1 || to > 99999) return toast('Use a whole number from 1 to 99999');
+      if (to === n) return;
+      const other = itemByNum(to);
+      if (other && !confirm(`#${to} is already "${other.title}".\n\nSwap them? "${it.title}" becomes #${to} and "${other.title}" becomes #${n}. Playlists are updated to match.`)) return;
+      const key = { type: it.type, id: it.id };
+      const ok = await saveCfg(cfg => {
+        // Re-find by identity in the freshest config, in case numbers moved since we looked.
+        const cur = cfg.items.find(q => q.type === key.type && q.id === key.id);
+        if (!cur) throw new Error('that file is no longer in the library');
+        return renumberItem(cfg, cur.num, to);
+      });
+      if (ok){
+        S.queue = S.queue.map(q => S.cfg.items.find(i => i.type === q.type && i.id === q.id) || q);
+        renderPlayer();
+        toast(other ? `Swapped: "${it.title}" is #${to}, "${other.title}" is #${n}` : `"${it.title}" is now #${to}`, 3500);
+      }
       break;
     }
     case 'rename': {
