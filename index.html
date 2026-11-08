@@ -92,7 +92,7 @@ code{background:var(--chip);padding:.05rem .35rem;border-radius:5px}
 
 <script>
 /* ===== Configure this one line (see README) ===== */
-const CLIENT_ID = '505852022421-n9opip0pn4eepqro6m5tker7vkagivi3.apps.googleusercontent.com';
+const CLIENT_ID = 'PASTE_YOUR_CLIENT_ID.apps.googleusercontent.com';
 
 const SCOPE = 'https://www.googleapis.com/auth/drive';
 const CONFIG_NAME = 'player-config.json';
@@ -218,19 +218,45 @@ async function api(url, opts = {}){
   }
   return r;
 }
+/* Lists EVERYTHING in the folder and decides here what counts as a video.
+   Drive sometimes labels uploaded .mp4s as application/octet-stream, and
+   shortcuts carry their real type in shortcutDetails — a server-side
+   "mimeType contains 'video/'" query silently drops both. */
+const VIDEO_EXT = /\.(mp4|m4v|mov|webm|mkv)$/i;
+function classifyFolderFiles(files){
+  const videos = [], scan = { total: files.length, videos: 0, folders: 0, shortcuts: 0, others: [] };
+  for (const f of files){
+    if (f.name === CONFIG_NAME) continue;
+    const sc = f.mimeType === 'application/vnd.google-apps.shortcut' ? f.shortcutDetails : null;
+    const mime = sc ? (sc.targetMimeType || '') : (f.mimeType || '');
+    if (mime === 'application/vnd.google-apps.folder'){ scan.folders++; continue; }
+    if (mime.startsWith('video/') || VIDEO_EXT.test(f.name)){
+      videos.push({ id: sc ? sc.targetId : f.id, name: f.name, size: sc ? undefined : f.size, shortcut: !!sc });
+      scan.videos++; if (sc) scan.shortcuts++;
+    } else scan.others.push(`${f.name} (${mime || 'unknown type'})`);
+  }
+  return { videos, scan };
+}
 async function listVideos(folderId){
-  const out = []; let pageToken = '';
+  const all = []; let pageToken = '';
   do {
     const p = new URLSearchParams({
-      q: `'${folderId}' in parents and trashed=false and mimeType contains 'video/'`,
-      fields: 'nextPageToken,files(id,name,size)', pageSize: '1000',
+      q: `'${folderId}' in parents and trashed=false`,
+      fields: 'nextPageToken,files(id,name,size,mimeType,shortcutDetails(targetId,targetMimeType))', pageSize: '1000',
       supportsAllDrives: 'true', includeItemsFromAllDrives: 'true'
     });
     if (pageToken) p.set('pageToken', pageToken);
     const j = await (await api(`${API}/files?${p}`)).json();
-    out.push(...(j.files || [])); pageToken = j.nextPageToken || '';
+    all.push(...(j.files || [])); pageToken = j.nextPageToken || '';
   } while (pageToken);
-  return out;
+  const { videos, scan } = classifyFolderFiles(all);
+  // Shortcuts don't report the target's size; seeking needs it, so look it up.
+  for (const v of videos.filter(v => v.shortcut)){
+    try { v.size = (await (await api(`${API}/files/${v.id}?fields=size&supportsAllDrives=true`)).json()).size; } catch {}
+  }
+  scan.at = new Date();
+  S.lastScan = scan;
+  return videos;
 }
 async function findConfig(folderId){
   const p = new URLSearchParams({
@@ -316,7 +342,10 @@ async function syncFolder(quiet){
       const r = await saveCfg(cfg => applySync(cfg, files));
       if (r && (!quiet || r.added)) toast(r.added ? `Added ${r.added} new video${r.added > 1 ? 's' : ''}` : 'Library updated');
     } else if (!quiet) toast('Library is up to date');
-  } catch (e){ if (!quiet || !(e instanceof AuthErr)) toast('Sync failed: ' + e.message, 4500); }
+  } catch (e){
+    S.lastScan = { error: e.message, at: new Date() };
+    if (!quiet || !(e instanceof AuthErr)) toast('Sync failed: ' + e.message, 4500);
+  }
   S.syncing = false; render();
 }
 
@@ -524,8 +553,20 @@ function viewLibrary(){
     <div class="row" style="margin-bottom:.5rem"><input id="filter" placeholder="Search by name or number" value="${esc(S.filter)}">
       <button class="btn" data-act="sync" ${S.syncing ? 'disabled' : ''}>${S.syncing ? 'Syncing…' : '↻ Sync Drive folder'}</button></div>
     <ul class="list" id="librows">${libRows()}</ul>
+    ${scanInfo()}
     <p class="mute" style="font-size:.85rem">New .mp4 files added to the Drive folder get the next number when you sync. Numbers never change or get reused.</p>
   </div>`;
+}
+function scanInfo(){
+  const s = S.lastScan;
+  const folderLink = `<a href="https://drive.google.com/drive/folders/${encodeURIComponent(S.folderId)}" target="_blank" rel="noopener">open the folder this app is reading</a>`;
+  if (!s) return `<p class="mute" style="font-size:.85rem">Drive folder not scanned yet — tap Sync. (${folderLink})</p>`;
+  const when = s.at.toLocaleTimeString();
+  if (s.error) return `<p class="warn" style="font-size:.85rem"><b>Last Drive scan failed (${when}):</b> ${esc(s.error)} · ${folderLink}</p>`;
+  const parts = [`${s.videos} video${s.videos === 1 ? '' : 's'}${s.shortcuts ? ` (${s.shortcuts} via shortcut)` : ''}`];
+  if (s.folders) parts.push(`${s.folders} subfolder${s.folders === 1 ? '' : 's'} (not scanned — move videos up into this folder)`);
+  if (s.others.length) parts.push(`${s.others.length} other file${s.others.length === 1 ? '' : 's'}: ${s.others.slice(0, 5).map(esc).join(', ')}${s.others.length > 5 ? ' …' : ''}`);
+  return `<p class="mute" style="font-size:.85rem"><b>Last Drive scan (${when}):</b> Drive returned ${s.total} item${s.total === 1 ? '' : 's'} → ${parts.join(' · ')} · ${folderLink}</p>`;
 }
 function viewPlaylists(p){
   return `
