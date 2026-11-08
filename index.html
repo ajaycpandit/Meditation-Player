@@ -45,6 +45,9 @@ input,select{font:inherit;padding:.6rem .75rem;border-radius:10px;border:1px sol
 #player{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin:1rem 0;overflow:hidden}
 #stage{position:relative;background:#000;aspect-ratio:16/9;max-height:72vh;width:100%}
 #stage video,#ytwrap,#ytwrap iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+#audioart{position:absolute;inset:0 0 3.5rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5rem;color:#fff;text-align:center;padding:1rem;pointer-events:none;background:radial-gradient(circle at 50% 40%,#2a3550,#000 70%)}
+#audioart .note{font-size:3.5rem;line-height:1}
+#audioart .ttl{font-size:1.2rem;font-weight:600;max-width:90%;overflow-wrap:anywhere}
 #stage:fullscreen{max-height:none;aspect-ratio:auto}
 .now{padding:.75rem 1rem}
 .controls{display:flex;gap:.5rem;flex-wrap:wrap;padding:0 1rem 1rem}
@@ -68,6 +71,7 @@ code{background:var(--chip);padding:.05rem .35rem;border-radius:5px}
       <div id="stage">
         <video id="vid" controls playsinline preload="metadata"></video>
         <div id="ytwrap" hidden><div id="ytmount"></div></div>
+        <div id="audioart" hidden></div>
       </div>
       <div class="now" id="now"></div>
       <div class="now warn" id="diag" hidden></div>
@@ -239,16 +243,20 @@ async function api(url, opts = {}){
    shortcuts carry their real type in shortcutDetails — a server-side
    "mimeType contains 'video/'" query silently drops both. */
 const VIDEO_EXT = /\.(mp4|m4v|mov|webm|mkv)$/i;
+const AUDIO_EXT = /\.(m4a|mp3|aac|wav|ogg|oga|opus|flac)$/i;
 function classifyFolderFiles(files){
-  const videos = [], scan = { total: files.length, videos: 0, folders: 0, shortcuts: 0, others: [] };
+  const videos = [], scan = { total: files.length, videos: 0, audio: 0, folders: 0, shortcuts: 0, others: [] };
   for (const f of files){
     if (f.name === CONFIG_NAME) continue;
     const sc = f.mimeType === 'application/vnd.google-apps.shortcut' ? f.shortcutDetails : null;
     const mime = sc ? (sc.targetMimeType || '') : (f.mimeType || '');
     if (mime === 'application/vnd.google-apps.folder'){ scan.folders++; continue; }
-    if (mime.startsWith('video/') || VIDEO_EXT.test(f.name)){
-      videos.push({ id: sc ? sc.targetId : f.id, name: f.name, size: sc ? undefined : f.size, shortcut: !!sc });
-      scan.videos++; if (sc) scan.shortcuts++;
+    // Extension wins over type: Drive labels some .m4a files video/mp4.
+    const isAudio = AUDIO_EXT.test(f.name) || (mime.startsWith('audio/') && !VIDEO_EXT.test(f.name));
+    if (isAudio || mime.startsWith('video/') || VIDEO_EXT.test(f.name)){
+      videos.push({ id: sc ? sc.targetId : f.id, name: f.name, size: sc ? undefined : f.size, shortcut: !!sc, media: isAudio ? 'audio' : 'video' });
+      if (isAudio) scan.audio++; else scan.videos++;
+      if (sc) scan.shortcuts++;
     } else scan.others.push(`${f.name} (${mime || 'unknown type'})`);
   }
   return { videos, scan };
@@ -341,9 +349,10 @@ function applySync(cfg, files){
     if (it){
       if (f.size && it.size !== f.size){ it.size = f.size; changed = true; }
       if (it.file !== f.name){ it.file = f.name; changed = true; }
+      if (f.media && it.media !== f.media){ it.media = f.media; changed = true; }
       return;
     }
-    cfg.items.push({ num: cfg.nextNumber++, type: 'drive', id: f.id, title: f.name.replace(/\.[^.]+$/, ''), file: f.name, size: f.size });
+    cfg.items.push({ num: cfg.nextNumber++, type: 'drive', id: f.id, title: f.name.replace(/\.[^.]+$/, ''), file: f.name, size: f.size, media: f.media || 'video' });
     added++; changed = true;
   });
   return { added, changed };
@@ -445,6 +454,7 @@ function playCurrent(){
   if (it.type === 'drive'){
     try { ytPlayer?.stopVideo?.(); } catch {}
     ytw.hidden = true; vid.hidden = false;
+    showAudioArt(it.media === 'audio' ? it : null);
     const go = () => {
       vid.src = `drive-stream/${encodeURIComponent(it.id)}${it.size ? `?size=${it.size}` : ''}`;
       vid.play().catch(() => {});
@@ -453,6 +463,7 @@ function playCurrent(){
   } else {
     vid.pause(); vid.removeAttribute('src'); vid.load();
     vid.hidden = true; ytw.hidden = false;
+    showAudioArt(null);
     ensureYT().then(p => p.loadVideoById(it.id)).catch(() => { toast('YouTube player failed to load — skipping'); setTimeout(next, 1500); });
   }
   renderPlayer();
@@ -490,8 +501,14 @@ async function diagnoseDrive(it, code){
   } catch (e){ parts.push('Stream test could not run: ' + e.message); }
   return parts.join(' ');
 }
+function showAudioArt(it){
+  const a = $('#audioart');
+  a.hidden = !it;
+  a.innerHTML = it ? `<div class="note">♪</div><div class="ttl">${esc(it.title)}</div><div class="mute">#${it.num}</div>` : '';
+}
 function stopPlayer(){
   showDiag('');
+  showAudioArt(null);
   const vid = $('#vid');
   vid.pause(); vid.removeAttribute('src'); vid.load();
   try { ytPlayer?.stopVideo?.(); } catch {}
@@ -546,7 +563,7 @@ function showGate(kind, msg){
 function showApp(){ $('#gate').hidden = true; $('#app').hidden = false; render(); }
 
 function itemRow(it, actions){
-  return `<li><span class="num">${it.num}</span><span class="src ${it.type === 'youtube' ? 'yt' : ''}">${it.type === 'youtube' ? 'YouTube' : 'Drive'}</span>
+  return `<li><span class="num">${it.num}</span><span class="src ${it.type === 'youtube' ? 'yt' : ''}">${it.type === 'youtube' ? 'YouTube' : it.media === 'audio' ? 'Audio' : 'Drive'}</span>
     <span class="t" title="${esc(it.title)}">${esc(it.title)}${it.missing ? ' <span class="warn">(missing from Drive)</span>' : ''}</span>${actions}</li>`;
 }
 function render(){
@@ -602,7 +619,7 @@ function viewLibrary(){
       <button class="btn" data-act="sync" ${S.syncing ? 'disabled' : ''}>${S.syncing ? 'Syncing…' : '↻ Sync Drive folder'}</button></div>
     <ul class="list" id="librows">${libRows()}</ul>
     ${scanInfo()}
-    <p class="mute" style="font-size:.85rem">New .mp4 files added to the Drive folder get the next number when you sync. Numbers never change or get reused.</p>
+    <p class="mute" style="font-size:.85rem">New video and audio files (.mp4, .m4a, .mp3 …) added to the Drive folder get the next number when you sync. Numbers never change or get reused.</p>
   </div>`;
 }
 function scanInfo(){
@@ -611,7 +628,7 @@ function scanInfo(){
   if (!s) return `<p class="mute" style="font-size:.85rem">Drive folder not scanned yet — tap Sync. (${folderLink})</p>`;
   const when = s.at.toLocaleTimeString();
   if (s.error) return `<p class="warn" style="font-size:.85rem"><b>Last Drive scan failed (${when}):</b> ${esc(s.error)} · ${folderLink}</p>`;
-  const parts = [`${s.videos} video${s.videos === 1 ? '' : 's'}${s.shortcuts ? ` (${s.shortcuts} via shortcut)` : ''}`];
+  const parts = [`${s.videos} video${s.videos === 1 ? '' : 's'}, ${s.audio || 0} audio${s.shortcuts ? ` (${s.shortcuts} via shortcut)` : ''}`];
   if (s.folders) parts.push(`${s.folders} subfolder${s.folders === 1 ? '' : 's'} (not scanned — move videos up into this folder)`);
   if (s.others.length) parts.push(`${s.others.length} other file${s.others.length === 1 ? '' : 's'}: ${s.others.slice(0, 5).map(esc).join(', ')}${s.others.length > 5 ? ' …' : ''}`);
   return `<p class="mute" style="font-size:.85rem"><b>Last Drive scan (${when}):</b> Drive returned ${s.total} item${s.total === 1 ? '' : 's'} → ${parts.join(' · ')} · ${folderLink}</p>`;
