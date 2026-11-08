@@ -40,7 +40,7 @@ self.addEventListener('fetch', e => {
 
 async function stream(id, size, req) {
   const t = await getToken();
-  if (!t) { notifyAuth(); return new Response('Not signed in', { status: 401 }); }
+  if (!t) { notifyAuth(); return fail(401, 'Not signed in (streaming helper has no sign-in token)'); }
 
   const headers = { Authorization: 'Bearer ' + t };
   const range = req.headers.get('range');
@@ -50,12 +50,16 @@ async function stream(id, size, req) {
   try {
     r = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media&supportsAllDrives=true`, { headers });
   } catch (err) {
-    return new Response('Network error', { status: 502 });
+    return fail(502, 'Could not reach Google Drive: ' + err.message);
   }
-  if (r.status === 401 || r.status === 403) { if (r.status === 401) { token = null; notifyAuth(); } return new Response(null, { status: r.status }); }
-  if (!r.ok) return new Response(null, { status: r.status });
+  if (!r.ok) {
+    if (r.status === 401) { token = null; notifyAuth(); }
+    let body = '';
+    try { body = await r.text(); } catch {}
+    return fail(r.status, body); // pass Drive's own error message through for diagnosis
+  }
 
-  const h = new Headers();
+  const h = new Headers({ 'X-FP-SW': '1' });
   h.set('Content-Type', r.headers.get('Content-Type') || 'video/mp4');
   h.set('Accept-Ranges', 'bytes');
   const len = r.headers.get('Content-Length');
@@ -74,6 +78,12 @@ async function stream(id, size, req) {
   if (cr) h.set('Content-Range', cr);
 
   return new Response(r.body, { status: r.status, statusText: r.statusText, headers: h });
+}
+
+// Error responses are marked X-FP-SW so the page can tell "this helper answered"
+// apart from "the request fell through to the web host".
+function fail(status, text) {
+  return new Response(text || '', { status, headers: { 'Content-Type': 'text/plain', 'X-FP-SW': '1' } });
 }
 
 async function notifyAuth() {

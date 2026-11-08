@@ -70,6 +70,7 @@ code{background:var(--chip);padding:.05rem .35rem;border-radius:5px}
         <div id="ytwrap" hidden><div id="ytmount"></div></div>
       </div>
       <div class="now" id="now"></div>
+      <div class="now warn" id="diag" hidden></div>
       <div class="controls">
         <button class="btn" data-act="prev">⏮ Prev</button>
         <button class="btn" data-act="next">Next ⏭</button>
@@ -450,7 +451,32 @@ function next(){
   playCurrent();
 }
 function prev(){ if (!S.queue.length) return; S.qi = Math.max(0, S.qi - 1); playCurrent(); }
+function showDiag(text){ const d = $('#diag'); d.textContent = text; d.hidden = !text; }
+const MEDIA_ERR = { 1: 'playback aborted', 2: 'network error while loading', 3: 'video data could not be decoded', 4: 'format not supported, or the stream failed' };
+/* After a Drive video fails, ask the streaming helper for the first 2 bytes
+   to separate "Drive refused" from "browser can't play this format". */
+async function diagnoseDrive(it, code){
+  const parts = [`Player: ${MEDIA_ERR[code] || 'unknown error'} (code ${code ?? '?'}).`];
+  if (!navigator.serviceWorker?.controller){
+    parts.push('Streaming helper is not active on this page — reload the page and try again.');
+    return parts.join(' ');
+  }
+  try {
+    const r = await fetch(`drive-stream/${encodeURIComponent(it.id)}${it.size ? `?size=${it.size}` : ''}`, { headers: { Range: 'bytes=0-1' } });
+    if (!r.headers.get('X-FP-SW')){
+      parts.push(`Stream test: got ${r.status} from the web host, not the streaming helper — make sure sw.js is uploaded next to index.html, then reload.`);
+    } else if (r.ok){
+      parts.push(`Stream test OK (${r.status}, ${r.headers.get('Content-Type') || 'no type'}): Drive is delivering the file, so this browser can't play its video format. Phone-recorded videos are often HEVC/H.265 — try Safari or Edge, or convert the file to H.264 MP4.`);
+    } else {
+      let msg = '';
+      try { const t = await r.text(); try { msg = JSON.parse(t).error?.message || t; } catch { msg = t; } } catch {}
+      parts.push(`Stream test: Drive answered ${r.status}${msg ? ` — "${String(msg).slice(0, 240)}"` : ''}.`);
+    }
+  } catch (e){ parts.push('Stream test could not run: ' + e.message); }
+  return parts.join(' ');
+}
 function stopPlayer(){
+  showDiag('');
   const vid = $('#vid');
   vid.pause(); vid.removeAttribute('src'); vid.load();
   try { ytPlayer?.stopVideo?.(); } catch {}
@@ -469,12 +495,18 @@ function toggleFull(){
 function setupVideoEvents(){
   const vid = $('#vid');
   vid.addEventListener('ended', () => { if (curItem()?.type === 'drive') next(); });
-  vid.addEventListener('error', () => {
-    if (curItem()?.type !== 'drive' || !vid.getAttribute('src')) return;
+  vid.addEventListener('error', async () => {
+    const it = curItem();
+    if (it?.type !== 'drive' || !vid.getAttribute('src')) return;
     if (!tokenValid()){ S.resumeAt = vid.currentTime || 0; showAuthBanner(); return; }
-    toast(`#${curItem().num} couldn't play — skipping`, 3500);
-    setTimeout(next, 1500);
+    const code = vid.error?.code;
+    const more = S.qi + 1 < S.queue.length || S.loop;
+    toast(`#${it.num} couldn't play${more ? ' — skipping' : ''}. Details under the player.`, 4000);
+    showDiag(`#${it.num} couldn't play — checking why…`);
+    showDiag(`#${it.num} "${it.title}" couldn't play. ${await diagnoseDrive(it, code)}`);
+    if (more) setTimeout(next, 2500);
   });
+  vid.addEventListener('playing', () => showDiag(''));
   vid.addEventListener('loadedmetadata', () => { if (S.resumeAt){ vid.currentTime = S.resumeAt; S.resumeAt = 0; } });
 }
 
@@ -627,7 +659,8 @@ async function boot(){
   readHashFolder();
   if (CLIENT_ID.startsWith('PASTE')) return showGate('setup');
   if (!('serviceWorker' in navigator)) return showGate('nosw');
-  await setupSW();
+  try { await setupSW(); }
+  catch (e){ return showGate('error', 'The streaming helper (sw.js) could not start: ' + e.message + ' — upload sw.js next to index.html.'); }
   try {
     const t = JSON.parse(sessionStorage.getItem('fp_tok') || 'null');
     if (t && t.exp > Date.now()){ S.token = t.token; S.tokenExp = t.exp; sendTokenToSW(); scheduleRefresh(); }
@@ -653,7 +686,7 @@ async function afterSignIn(){
   showApp();
   syncFolder(true);
 }
-function pickProfile(id){ S.profileId = id; store.set('fp_profile_' + S.folderId, id); S.editing = null; showApp(); }
+function pickProfile(id){ S.profileId = id; store.set('fp_profile_' + S.folderId, id); S.editing = null; showApp(); if (!S.lastScan) syncFolder(true); }
 
 /* ---------- events ---------- */
 document.addEventListener('click', async e => {
