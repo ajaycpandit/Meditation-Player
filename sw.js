@@ -15,6 +15,10 @@ self.addEventListener('message', e => {
   if (d.type === 'token' && d.token) {
     token = d.token;
     e.waitUntil(caches.open(TOKEN_CACHE).then(c => c.put(TOKEN_KEY, new Response(token))));
+  } else if (d.type === 'claim') {
+    // Page was loaded with a hard refresh (Ctrl+Shift+R), which bypasses this
+    // helper; take control of it now.
+    e.waitUntil(self.clients.claim());
   } else if (d.type === 'signout') {
     token = null;
     e.waitUntil(caches.delete(TOKEN_CACHE));

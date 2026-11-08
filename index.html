@@ -197,14 +197,29 @@ async function setupSW(){
   });
   navigator.serviceWorker.addEventListener('controllerchange', sendTokenToSW);
   await navigator.serviceWorker.register('sw.js');
-  await navigator.serviceWorker.ready;
+  const reg = await navigator.serviceWorker.ready;
   if (!navigator.serviceWorker.controller){
-    await new Promise(res => {
+    // Usually a hard refresh (Ctrl+Shift+R), which skips the helper. Ask it to take over.
+    const got = new Promise(res => {
       const t = setTimeout(res, 3000);
       navigator.serviceWorker.addEventListener('controllerchange', () => { clearTimeout(t); res(); }, { once: true });
     });
+    reg.active?.postMessage({ type: 'claim' });
+    await got;
   }
-  if (!navigator.serviceWorker.controller) toast('Reload the page once to enable Drive playback', 6000);
+  if (!navigator.serviceWorker.controller){
+    // Last resort: one normal reload, which always goes through the helper.
+    let tried = false;
+    try { tried = sessionStorage.getItem('fp_swreload') === '1'; } catch {}
+    if (!tried){
+      try { sessionStorage.setItem('fp_swreload', '1'); } catch {}
+      location.reload();
+      return new Promise(() => {});
+    }
+    try { sessionStorage.removeItem('fp_swreload'); } catch {}
+    throw new Error('This browser isn\'t letting the streaming helper run. Private/incognito windows or strict privacy settings can block it — try a normal window.');
+  }
+  try { sessionStorage.removeItem('fp_swreload'); } catch {}
 }
 
 /* ---------- Drive API ---------- */
@@ -520,6 +535,7 @@ function showGate(kind, msg){
     signin: `<h2>Family Player</h2><p class="mute">Sign in with the Google account that has access to the family video folder.</p><p><button class="btn pri" data-act="signin">Sign in with Google</button></p>`,
     folder: `<h2>Choose the video folder</h2><p class="mute">Paste the link to the Google Drive folder that holds your .mp4 files.</p><div class="row"><input id="folderin" placeholder="https://drive.google.com/drive/folders/…"><button class="btn pri" data-act="setfolder">Use folder</button></div>`,
     loading: `<p class="mute">Loading your library…</p>`,
+    swfail: `<h2>Drive playback can't start</h2><p class="warn">${esc(msg)}</p><p class="mute">If the message mentions 404, upload <code>sw.js</code> next to <code>index.html</code>.</p><p><button class="btn pri" onclick="location.reload()">Reload</button></p>`,
     error: `<h2>Couldn't open the folder</h2><p class="warn">${esc(msg)}</p><p class="mute">Check the folder is shared with this Google account as <b>Editor</b>.</p><div class="row"><button class="btn pri" data-act="retry">Try again</button><button class="btn" data-act="changefolder">Change folder</button></div>`,
     profile: () => `<h2>Who's watching?</h2>
       <ul class="list">${S.cfg.profiles.map(p => `<li><button class="btn" style="flex:1;text-align:left" data-act="pickprofile" data-id="${p.id}">${esc(p.name)}</button></li>`).join('') || '<li class="mute">No profiles yet.</li>'}</ul>
@@ -660,7 +676,7 @@ async function boot(){
   if (CLIENT_ID.startsWith('PASTE')) return showGate('setup');
   if (!('serviceWorker' in navigator)) return showGate('nosw');
   try { await setupSW(); }
-  catch (e){ return showGate('error', 'The streaming helper (sw.js) could not start: ' + e.message + ' — upload sw.js next to index.html.'); }
+  catch (e){ return showGate('swfail', e.message); }
   try {
     const t = JSON.parse(sessionStorage.getItem('fp_tok') || 'null');
     if (t && t.exp > Date.now()){ S.token = t.token; S.tokenExp = t.exp; sendTokenToSW(); scheduleRefresh(); }
