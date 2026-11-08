@@ -1,0 +1,772 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Family Player</title>
+<meta name="theme-color" content="#111418">
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#14171c;--mute:#5d6673;--line:#dde1e7;--acc:#2f6fed;--acc-ink:#fff;--warn:#f5a524;--bad:#c0262d;--chip:#eef1f5;--r:12px}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1216;--card:#181c22;--ink:#e9edf2;--mute:#99a3b0;--line:#2a3039;--acc:#5b8cff;--acc-ink:#fff;--bad:#ff6b6b;--chip:#222831}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{font-size:clamp(15px,0.6vw + 12px,22px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.4}
+header.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:.6rem;padding:.6rem 1rem;background:var(--card);border-bottom:1px solid var(--line)}
+header.top h1{font-size:1.1rem;margin:0;flex:1}
+.chip{background:var(--chip);border:0;color:var(--ink);border-radius:999px;padding:.35rem .8rem;font:inherit;font-size:.9rem;cursor:pointer}
+nav.tabs{display:flex;gap:.4rem;margin:1rem 0;overflow-x:auto}
+nav.tabs button{flex:1;min-width:5.5rem;padding:.6rem;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:var(--r);font:inherit;cursor:pointer}
+nav.tabs button.on{background:var(--acc);color:var(--acc-ink);border-color:var(--acc)}
+main{max-width:1100px;margin:0 auto;padding:0 1rem 4rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:1rem;margin:1rem 0}
+.card h2{font-size:.85rem;margin:0 0 .6rem;color:var(--mute);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.big{font-size:1.25rem;font-weight:600}
+button.btn{font:inherit;padding:.6rem 1rem;border-radius:10px;border:1px solid var(--line);background:var(--chip);color:var(--ink);cursor:pointer;min-height:2.6rem}
+button.pri{background:var(--acc);color:var(--acc-ink);border-color:var(--acc)}
+button.danger{color:var(--bad)}
+button.sm{padding:.35rem .6rem;min-height:2.2rem;min-width:2.4rem}
+button:disabled{opacity:.5;cursor:default}
+input,select{font:inherit;padding:.6rem .75rem;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);min-height:2.6rem;width:100%}
+.row{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.row>input{flex:1;min-width:9rem;width:auto}
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;align-items:center;gap:.5rem;padding:.5rem 0;border-top:1px solid var(--line)}
+.list li:first-child{border-top:0}
+.list li.cur{background:var(--chip);border-radius:8px;padding-left:.4rem}
+.num{display:inline-flex;align-items:center;justify-content:center;min-width:2.6rem;height:2.2rem;padding:0 .3rem;border-radius:8px;background:var(--chip);font-weight:700;font-variant-numeric:tabular-nums}
+.src{font-size:.7rem;padding:.1rem .4rem;border-radius:6px;border:1px solid var(--line);color:var(--mute);white-space:nowrap}
+.src.yt{color:#e5484d;border-color:currentColor}
+.t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mute{color:var(--mute)}
+.warn{color:var(--warn)}
+.pad{display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;max-width:26rem;margin-top:.75rem}
+.pad button{font-size:1.35rem;padding:.75rem 0}
+#player{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin:1rem 0;overflow:hidden}
+#stage{position:relative;background:#000;aspect-ratio:16/9;max-height:72vh;width:100%}
+#stage video,#ytwrap,#ytwrap iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+#stage:fullscreen{max-height:none;aspect-ratio:auto}
+.now{padding:.75rem 1rem}
+.controls{display:flex;gap:.5rem;flex-wrap:wrap;padding:0 1rem 1rem}
+#toast{position:fixed;left:50%;bottom:1.2rem;transform:translateX(-50%);background:#222;color:#fff;padding:.6rem 1rem;border-radius:10px;z-index:20;max-width:90vw;text-align:center}
+#authbar{position:sticky;top:0;z-index:10;background:var(--warn);color:#000;padding:.6rem 1rem;display:flex;gap:.75rem;align-items:center;justify-content:center;flex-wrap:wrap}
+#gate{max-width:34rem;margin:3rem auto;padding:0 1rem}
+#gate p{margin:.5rem 0}
+.days{display:grid;grid-template-columns:repeat(auto-fill,minmax(12rem,1fr));gap:.6rem}
+.days label{display:flex;flex-direction:column;gap:.25rem;font-size:.9rem;color:var(--mute)}
+code{background:var(--chip);padding:.05rem .35rem;border-radius:5px}
+</style>
+</head>
+<body>
+<div id="authbar" hidden><span>Google sign-in expired.</span><button class="btn" data-act="reauth">Sign in again</button></div>
+<div id="gate"></div>
+
+<div id="app" hidden>
+  <header class="top"><h1>Family Player</h1><button class="chip" id="profchip" data-act="switchprofile"></button></header>
+  <main>
+    <section id="player" hidden>
+      <div id="stage">
+        <video id="vid" controls playsinline preload="metadata"></video>
+        <div id="ytwrap" hidden><div id="ytmount"></div></div>
+      </div>
+      <div class="now" id="now"></div>
+      <div class="controls">
+        <button class="btn" data-act="prev">⏮ Prev</button>
+        <button class="btn" data-act="next">Next ⏭</button>
+        <button class="btn" data-act="loop" id="loopbtn">Loop: off</button>
+        <button class="btn" data-act="full">Fullscreen</button>
+        <button class="btn danger" data-act="close">Stop</button>
+      </div>
+      <details class="now" id="queuebox"><summary>Queue</summary><ol class="list" id="queue"></ol></details>
+    </section>
+    <nav class="tabs">
+      <button data-act="tab" data-tab="play">Play</button>
+      <button data-act="tab" data-tab="library">Library</button>
+      <button data-act="tab" data-tab="playlists">Playlists</button>
+      <button data-act="tab" data-tab="settings">Settings</button>
+    </nav>
+    <div id="view"></div>
+  </main>
+</div>
+<div id="toast" hidden></div>
+
+<script>
+/* ===== Configure this one line (see README) ===== */
+const CLIENT_ID = 'PASTE_YOUR_CLIENT_ID.apps.googleusercontent.com';
+
+const SCOPE = 'https://www.googleapis.com/auth/drive';
+const CONFIG_NAME = 'player-config.json';
+const API = 'https://www.googleapis.com/drive/v3';
+const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
+const DAYS = [['sun','Sunday'],['mon','Monday'],['tue','Tuesday'],['wed','Wednesday'],['thu','Thursday'],['fri','Friday'],['sat','Saturday']];
+
+const S = { token:null, tokenExp:0, folderId:null, cfg:null, cfgId:null, profileId:null, tab:'play',
+  queue:[], qi:-1, qLabel:'', loop:false, editing:null, filter:'', quick:'', syncing:false, resumeAt:0 };
+
+/* ---------- small helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Math.random().toString(36).slice(2, 10);
+const store = {
+  get(k){ try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v){ try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} }
+};
+function toast(msg, ms = 2800){ const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, ms); }
+class AuthErr extends Error { constructor(){ super('Signed out — tap "Sign in again"'); } }
+
+/* ---------- parsers (pure) ---------- */
+function parseNumbers(text){
+  const nums = [], bad = [];
+  const norm = String(text).replace(/\s*[-–]\s*/g, '-');
+  for (const part of norm.split(/[\s,;]+/).filter(Boolean)){
+    const r = part.match(/^(\d+)-(\d+)$/);
+    if (r){
+      const a = +r[1], b = +r[2];
+      if (Math.abs(b - a) > 500){ bad.push(part); continue; }
+      const step = a <= b ? 1 : -1;
+      for (let n = a; n !== b + step; n += step) nums.push(n);
+    } else if (/^\d+$/.test(part)) nums.push(+part);
+    else bad.push(part);
+  }
+  return { nums, bad };
+}
+function parseYouTubeId(input){
+  const s = String(input).trim();
+  const valid = id => /^[\w-]{11}$/.test(id || '') ? id : null;
+  if (valid(s)) return s;
+  let u; try { u = new URL(/^https?:\/\//i.test(s) ? s : 'https://' + s); } catch { return null; }
+  const host = u.hostname.replace(/^(www|m|music)\./, '');
+  if (host === 'youtu.be') return valid(u.pathname.slice(1).split('/')[0]);
+  if (host === 'youtube.com' || host === 'youtube-nocookie.com'){
+    if (u.searchParams.get('v')) return valid(u.searchParams.get('v'));
+    const m = u.pathname.match(/^\/(?:embed|shorts|live|v)\/([\w-]{11})/);
+    if (m) return m[1];
+  }
+  return null;
+}
+function parseFolderId(input){
+  const s = String(input).trim();
+  const m = s.match(/\/folders\/([\w-]+)/) || s.match(/[?&]id=([\w-]+)/);
+  if (m) return m[1];
+  return /^[\w-]{10,}$/.test(s) ? s : null;
+}
+
+/* ---------- Google sign-in ---------- */
+let tokenClient = null, pendingTok = null, refreshTimer = null;
+function gisLoaded(){
+  if (!CLIENT_ID.startsWith('PASTE')){
+    tokenClient = google.accounts.oauth2.initTokenClient({ client_id: CLIENT_ID, scope: SCOPE, callback: onToken, error_callback: onTokenError });
+  }
+  boot();
+}
+function requestToken(prompt = ''){
+  return new Promise((res, rej) => { pendingTok = { res, rej }; tokenClient.requestAccessToken({ prompt }); });
+}
+function onToken(r){
+  const p = pendingTok; pendingTok = null;
+  if (r.error){ p?.rej(new Error(r.error)); return; }
+  if (!google.accounts.oauth2.hasGrantedAllScopes(r, SCOPE)){ p?.rej(new Error('Drive access was not allowed — tick the Drive box when signing in')); return; }
+  S.token = r.access_token;
+  S.tokenExp = Date.now() + (Number(r.expires_in || 3600) - 120) * 1000;
+  try { sessionStorage.setItem('fp_tok', JSON.stringify({ token: S.token, exp: S.tokenExp })); } catch {}
+  sendTokenToSW(); scheduleRefresh(); $('#authbar').hidden = true;
+  p?.res();
+}
+function onTokenError(err){
+  const p = pendingTok; pendingTok = null;
+  p?.rej(new Error(err?.type === 'popup_failed_to_open' ? 'Pop-up was blocked' : (err?.type || 'Sign-in failed')));
+  if (S.cfg) showAuthBanner();
+}
+const tokenValid = () => !!S.token && Date.now() < S.tokenExp;
+function scheduleRefresh(){
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(() => requestToken('').catch(() => showAuthBanner()), Math.max(10000, S.tokenExp - Date.now()));
+}
+function withToken(fn){
+  if (tokenValid()) return fn();
+  requestToken('').then(fn).catch(e => { toast(e.message, 4000); showAuthBanner(); });
+}
+function showAuthBanner(){ if (S.cfg) $('#authbar').hidden = false; }
+function sendTokenToSW(){ navigator.serviceWorker?.controller?.postMessage({ type: 'token', token: S.token }); }
+
+/* ---------- service worker (streams Drive videos with your sign-in) ---------- */
+async function setupSW(){
+  navigator.serviceWorker.addEventListener('message', e => {
+    if (e.data?.type === 'auth-expired'){ S.tokenExp = 0; showAuthBanner(); }
+  });
+  navigator.serviceWorker.addEventListener('controllerchange', sendTokenToSW);
+  await navigator.serviceWorker.register('sw.js');
+  await navigator.serviceWorker.ready;
+  if (!navigator.serviceWorker.controller){
+    await new Promise(res => {
+      const t = setTimeout(res, 3000);
+      navigator.serviceWorker.addEventListener('controllerchange', () => { clearTimeout(t); res(); }, { once: true });
+    });
+  }
+  if (!navigator.serviceWorker.controller) toast('Reload the page once to enable Drive playback', 6000);
+}
+
+/* ---------- Drive API ---------- */
+async function api(url, opts = {}){
+  if (!tokenValid()) throw new AuthErr();
+  const r = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: 'Bearer ' + S.token } });
+  if (r.status === 401){ S.tokenExp = 0; showAuthBanner(); throw new AuthErr(); }
+  if (!r.ok){
+    let msg = r.status + ' ' + r.statusText;
+    try { const j = await r.json(); msg = j.error?.message || msg; } catch {}
+    throw new Error(msg);
+  }
+  return r;
+}
+async function listVideos(folderId){
+  const out = []; let pageToken = '';
+  do {
+    const p = new URLSearchParams({
+      q: `'${folderId}' in parents and trashed=false and mimeType contains 'video/'`,
+      fields: 'nextPageToken,files(id,name,size)', pageSize: '1000',
+      supportsAllDrives: 'true', includeItemsFromAllDrives: 'true'
+    });
+    if (pageToken) p.set('pageToken', pageToken);
+    const j = await (await api(`${API}/files?${p}`)).json();
+    out.push(...(j.files || [])); pageToken = j.nextPageToken || '';
+  } while (pageToken);
+  return out;
+}
+async function findConfig(folderId){
+  const p = new URLSearchParams({
+    q: `name='${CONFIG_NAME}' and '${folderId}' in parents and trashed=false`,
+    fields: 'files(id)', supportsAllDrives: 'true', includeItemsFromAllDrives: 'true'
+  });
+  const j = await (await api(`${API}/files?${p}`)).json();
+  return j.files?.[0]?.id || null;
+}
+function normalizeCfg(c){
+  c = c && typeof c === 'object' ? c : {};
+  c.version = 1;
+  c.items = Array.isArray(c.items) ? c.items : [];
+  c.profiles = Array.isArray(c.profiles) ? c.profiles : [];
+  const maxNum = c.items.reduce((m, i) => Math.max(m, i.num || 0), 0);
+  c.nextNumber = Math.max(Number(c.nextNumber) || 1, maxNum + 1);
+  c.profiles.forEach(p => {
+    p.playlists = Array.isArray(p.playlists) ? p.playlists : [];
+    p.schedule = p.schedule && typeof p.schedule === 'object' ? p.schedule : {};
+  });
+  return c;
+}
+async function readConfig(id){
+  const r = await api(`${API}/files/${id}?alt=media&supportsAllDrives=true`);
+  return normalizeCfg(await r.json());
+}
+async function createConfig(folderId, obj){
+  const b = 'fp' + uid();
+  const meta = { name: CONFIG_NAME, parents: [folderId], mimeType: 'application/json' };
+  const body = `--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${b}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(obj, null, 1)}\r\n--${b}--`;
+  const r = await api(`${UPLOAD}/files?uploadType=multipart&supportsAllDrives=true&fields=id`,
+    { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${b}` }, body });
+  return (await r.json()).id;
+}
+async function writeConfig(id, obj){
+  await api(`${UPLOAD}/files/${id}?uploadType=media&supportsAllDrives=true`,
+    { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj, null, 1) });
+}
+/* Every edit re-reads the latest file, applies the change, then writes —
+   so two family members editing at different times never overwrite each other. */
+let saving = Promise.resolve();
+function saveCfg(mutator){
+  const run = saving.then(async () => {
+    const latest = await readConfig(S.cfgId);
+    const res = mutator(latest);
+    latest.updatedAt = new Date().toISOString();
+    await writeConfig(S.cfgId, latest);
+    S.cfg = latest; render();
+    return res === undefined ? true : res;
+  });
+  saving = run.catch(() => {});
+  return run.catch(e => { toast('Save failed: ' + e.message, 4500); return null; });
+}
+
+/* ---------- library sync ---------- */
+function applySync(cfg, files){
+  let added = 0, changed = false;
+  const present = new Set(files.map(f => f.id));
+  const known = new Map(cfg.items.filter(i => i.type === 'drive').map(i => [i.id, i]));
+  for (const it of known.values()){
+    const miss = !present.has(it.id);
+    if (!!it.missing !== miss){ if (miss) it.missing = true; else delete it.missing; changed = true; }
+  }
+  files.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })).forEach(f => {
+    const it = known.get(f.id);
+    if (it){
+      if (f.size && it.size !== f.size){ it.size = f.size; changed = true; }
+      if (it.file !== f.name){ it.file = f.name; changed = true; }
+      return;
+    }
+    cfg.items.push({ num: cfg.nextNumber++, type: 'drive', id: f.id, title: f.name.replace(/\.[^.]+$/, ''), file: f.name, size: f.size });
+    added++; changed = true;
+  });
+  return { added, changed };
+}
+async function syncFolder(quiet){
+  if (S.syncing) return;
+  S.syncing = true; render();
+  try {
+    const files = await listVideos(S.folderId);
+    const probe = applySync(structuredClone(S.cfg), files);
+    if (probe.changed){
+      const r = await saveCfg(cfg => applySync(cfg, files));
+      if (r && (!quiet || r.added)) toast(r.added ? `Added ${r.added} new video${r.added > 1 ? 's' : ''}` : 'Library updated');
+    } else if (!quiet) toast('Library is up to date');
+  } catch (e){ if (!quiet || !(e instanceof AuthErr)) toast('Sync failed: ' + e.message, 4500); }
+  S.syncing = false; render();
+}
+
+async function fetchYTTitle(id){
+  const watch = encodeURIComponent('https://www.youtube.com/watch?v=' + id);
+  for (const url of [`https://www.youtube.com/oembed?url=${watch}&format=json`, `https://noembed.com/embed?url=${watch}`]){
+    try { const r = await fetch(url); if (r.ok){ const j = await r.json(); if (j.title) return j.title; } } catch {}
+  }
+  return null;
+}
+async function addYouTube(input){
+  const id = parseYouTubeId(input);
+  if (!id) return toast('That doesn\'t look like a YouTube link');
+  const dup = S.cfg.items.find(i => i.type === 'youtube' && i.id === id);
+  if (dup) return toast(`Already in library as #${dup.num}`);
+  toast('Adding…');
+  const title = await fetchYTTitle(id) || prompt('Couldn\'t fetch the title. Name this video:', 'YouTube video') || 'YouTube ' + id;
+  const n = await saveCfg(cfg => {
+    const ex = cfg.items.find(i => i.type === 'youtube' && i.id === id);
+    if (ex) return ex.num;
+    const num = cfg.nextNumber++;
+    cfg.items.push({ num, type: 'youtube', id, title });
+    return num;
+  });
+  if (n){ toast(`Added as #${n}`); ensureYTApi().catch(() => {}); }
+}
+
+/* ---------- lookups ---------- */
+const itemByNum = n => S.cfg.items.find(i => i.num === n);
+const curProfile = (cfg = S.cfg) => cfg?.profiles.find(p => p.id === S.profileId);
+
+/* ---------- player ---------- */
+let ytApiP = null, ytPlayerP = null, ytPlayer = null;
+function ensureYTApi(){
+  if (ytApiP) return ytApiP;
+  ytApiP = new Promise((res, rej) => {
+    if (window.YT?.Player) return res();
+    window.onYouTubeIframeAPIReady = () => res();
+    const s = document.createElement('script');
+    s.src = 'https://www.youtube.com/iframe_api';
+    s.onerror = () => { ytApiP = null; rej(new Error('YouTube could not load')); };
+    document.head.appendChild(s);
+  });
+  return ytApiP;
+}
+function ensureYT(){
+  if (ytPlayerP) return ytPlayerP;
+  ytPlayerP = ensureYTApi().then(() => new Promise(res => {
+    ytPlayer = new YT.Player('ytmount', {
+      width: '100%', height: '100%',
+      playerVars: { autoplay: 1, playsinline: 1, rel: 0 },
+      events: {
+        onReady: () => res(ytPlayer),
+        onStateChange: e => { if (e.data === YT.PlayerState.ENDED && curItem()?.type === 'youtube') next(); },
+        onError: e => {
+          const it = curItem();
+          toast(`#${it?.num} can't be played here (YouTube error ${e.data}) — skipping`, 4000);
+          setTimeout(next, 1500);
+        }
+      }
+    });
+  }));
+  ytPlayerP.catch(() => { ytPlayerP = null; });
+  return ytPlayerP;
+}
+const curItem = () => S.queue[S.qi];
+
+function playQueue(nums, label){
+  const items = [], skipped = [];
+  nums.forEach(n => { const it = itemByNum(n); if (it && !it.missing) items.push(it); else skipped.push(n); });
+  if (skipped.length) toast(`Skipped #${skipped.join(', #')} (not in library)`, 4000);
+  if (!items.length) return;
+  S.queue = items; S.qi = 0; S.qLabel = label;
+  $('#player').hidden = false;
+  playCurrent();
+  $('#player').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function playCurrent(){
+  const it = curItem(); if (!it) return;
+  const vid = $('#vid'), ytw = $('#ytwrap');
+  if (it.type === 'drive'){
+    try { ytPlayer?.stopVideo?.(); } catch {}
+    ytw.hidden = true; vid.hidden = false;
+    const go = () => {
+      vid.src = `drive-stream/${encodeURIComponent(it.id)}${it.size ? `?size=${it.size}` : ''}`;
+      vid.play().catch(() => {});
+    };
+    if (tokenValid()) go(); else withToken(go);
+  } else {
+    vid.pause(); vid.removeAttribute('src'); vid.load();
+    vid.hidden = true; ytw.hidden = false;
+    ensureYT().then(p => p.loadVideoById(it.id)).catch(() => { toast('YouTube player failed to load — skipping'); setTimeout(next, 1500); });
+  }
+  renderPlayer();
+}
+function next(){
+  if (!S.queue.length) return;
+  if (S.qi + 1 >= S.queue.length){
+    if (S.loop) S.qi = 0;
+    else { toast('Finished'); renderPlayer(); return; }
+  } else S.qi++;
+  playCurrent();
+}
+function prev(){ if (!S.queue.length) return; S.qi = Math.max(0, S.qi - 1); playCurrent(); }
+function stopPlayer(){
+  const vid = $('#vid');
+  vid.pause(); vid.removeAttribute('src'); vid.load();
+  try { ytPlayer?.stopVideo?.(); } catch {}
+  S.queue = []; S.qi = -1;
+  $('#player').hidden = true;
+}
+function toggleFull(){
+  const st = $('#stage'), vid = $('#vid');
+  if (document.fullscreenElement || document.webkitFullscreenElement){
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document); return;
+  }
+  if (st.requestFullscreen) st.requestFullscreen();
+  else if (st.webkitRequestFullscreen) st.webkitRequestFullscreen();
+  else if (curItem()?.type === 'drive' && vid.webkitEnterFullscreen) vid.webkitEnterFullscreen();
+}
+function setupVideoEvents(){
+  const vid = $('#vid');
+  vid.addEventListener('ended', () => { if (curItem()?.type === 'drive') next(); });
+  vid.addEventListener('error', () => {
+    if (curItem()?.type !== 'drive' || !vid.getAttribute('src')) return;
+    if (!tokenValid()){ S.resumeAt = vid.currentTime || 0; showAuthBanner(); return; }
+    toast(`#${curItem().num} couldn't play — skipping`, 3500);
+    setTimeout(next, 1500);
+  });
+  vid.addEventListener('loadedmetadata', () => { if (S.resumeAt){ vid.currentTime = S.resumeAt; S.resumeAt = 0; } });
+}
+
+/* ---------- rendering ---------- */
+function showGate(kind, msg){
+  $('#app').hidden = true;
+  const g = $('#gate'); g.hidden = false;
+  const H = {
+    setup: `<h2>One setup step left</h2><p>Open <code>index.html</code> and paste your Google OAuth Client ID into <code>CLIENT_ID</code>. The README walks through it.</p>`,
+    nosw: `<h2>Browser not supported</h2><p>This browser can't stream Drive videos (no service worker support). Try Chrome, Edge, Firefox or Safari, and make sure the page is opened over https.</p>`,
+    signin: `<h2>Family Player</h2><p class="mute">Sign in with the Google account that has access to the family video folder.</p><p><button class="btn pri" data-act="signin">Sign in with Google</button></p>`,
+    folder: `<h2>Choose the video folder</h2><p class="mute">Paste the link to the Google Drive folder that holds your .mp4 files.</p><div class="row"><input id="folderin" placeholder="https://drive.google.com/drive/folders/…"><button class="btn pri" data-act="setfolder">Use folder</button></div>`,
+    loading: `<p class="mute">Loading your library…</p>`,
+    error: `<h2>Couldn't open the folder</h2><p class="warn">${esc(msg)}</p><p class="mute">Check the folder is shared with this Google account as <b>Editor</b>.</p><div class="row"><button class="btn pri" data-act="retry">Try again</button><button class="btn" data-act="changefolder">Change folder</button></div>`,
+    profile: () => `<h2>Who's watching?</h2>
+      <ul class="list">${S.cfg.profiles.map(p => `<li><button class="btn" style="flex:1;text-align:left" data-act="pickprofile" data-id="${p.id}">${esc(p.name)}</button></li>`).join('') || '<li class="mute">No profiles yet.</li>'}</ul>
+      <div class="row" style="margin-top:1rem"><input id="newprof" placeholder="New profile name"><button class="btn pri" data-act="createprofile">Create</button></div>`
+  };
+  const h = H[kind]; g.innerHTML = typeof h === 'function' ? h() : h;
+}
+function showApp(){ $('#gate').hidden = true; $('#app').hidden = false; render(); }
+
+function itemRow(it, actions){
+  return `<li><span class="num">${it.num}</span><span class="src ${it.type === 'youtube' ? 'yt' : ''}">${it.type === 'youtube' ? 'YouTube' : 'Drive'}</span>
+    <span class="t" title="${esc(it.title)}">${esc(it.title)}${it.missing ? ' <span class="warn">(missing from Drive)</span>' : ''}</span>${actions}</li>`;
+}
+function render(){
+  if (!S.cfg || $('#app').hidden) return;
+  const p = curProfile();
+  $('#profchip').textContent = p ? '👤 ' + p.name : 'Profile';
+  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
+  const v = $('#view');
+  if (S.tab === 'play') v.innerHTML = viewPlay(p);
+  else if (S.tab === 'library') v.innerHTML = viewLibrary();
+  else if (S.tab === 'playlists') v.innerHTML = S.editing ? viewEditor() : viewPlaylists(p);
+  else v.innerHTML = viewSettings(p);
+  renderPlayer();
+}
+function viewPlay(p){
+  const [dk, dn] = DAYS[new Date().getDay()];
+  const tp = p.playlists.find(x => x.id === p.schedule[dk]);
+  const keys = ['1','2','3',',','4','5','6','-','7','8','9','⌫','0'];
+  return `
+  <div class="card"><h2>Today · ${dn}</h2>
+    ${tp ? `<div class="row"><span class="big" style="flex:1">${esc(tp.name)} <span class="mute">· ${tp.items.length} videos</span></span>
+      <button class="btn pri" data-act="playpl" data-id="${tp.id}">▶ Play today's list</button></div>`
+      : `<p class="mute">Nothing scheduled for ${dn}. Set it up under Playlists.</p>`}
+  </div>
+  <div class="card"><h2>Play by number</h2>
+    <div class="row"><input id="quick" inputmode="numeric" placeholder="e.g. 3, 7, 12 or 4-9" value="${esc(S.quick)}">
+      <button class="btn pri" data-act="quickplay">▶ Play</button></div>
+    <div class="pad">${keys.map(k => `<button class="btn" data-act="key" data-k="${k}">${k}</button>`).join('')}<button class="btn" data-act="key" data-k="clear" style="grid-column:span 3">Clear</button></div>
+  </div>
+  <div class="card"><h2>${esc(p.name)}'s playlists</h2>
+    <ul class="list">${p.playlists.map(pl => `<li><span class="t">${esc(pl.name)} <span class="mute">· ${pl.items.length}</span></span>
+      <button class="btn sm" data-act="playpl" data-id="${pl.id}">▶ Play</button></li>`).join('') || '<li class="mute">No playlists yet.</li>'}</ul>
+  </div>`;
+}
+function libRows(){
+  const f = S.filter.trim().toLowerCase();
+  const items = S.cfg.items.slice().sort((a, b) => a.num - b.num)
+    .filter(i => !f || String(i.num) === f || i.title.toLowerCase().includes(f));
+  return items.map(it => itemRow(it, `
+    <button class="btn sm" data-act="playone" data-n="${it.num}" ${it.missing ? 'disabled' : ''} title="Play now">▶</button>
+    <button class="btn sm" data-act="enqueue" data-n="${it.num}" ${it.missing ? 'disabled' : ''} title="Add to queue">＋</button>
+    <button class="btn sm" data-act="rename" data-n="${it.num}" title="Rename">✎</button>
+    ${it.type === 'youtube' || it.missing ? `<button class="btn sm danger" data-act="remove" data-n="${it.num}" title="Remove">✕</button>` : ''}`)).join('')
+    || '<li class="mute">No videos match.</li>';
+}
+function viewLibrary(){
+  return `
+  <div class="card"><h2>Add a YouTube video</h2>
+    <div class="row"><input id="yturl" placeholder="Paste a YouTube link"><button class="btn pri" data-act="addyt">Add</button></div>
+  </div>
+  <div class="card"><h2>Library · ${S.cfg.items.length} videos</h2>
+    <div class="row" style="margin-bottom:.5rem"><input id="filter" placeholder="Search by name or number" value="${esc(S.filter)}">
+      <button class="btn" data-act="sync" ${S.syncing ? 'disabled' : ''}>${S.syncing ? 'Syncing…' : '↻ Sync Drive folder'}</button></div>
+    <ul class="list" id="librows">${libRows()}</ul>
+    <p class="mute" style="font-size:.85rem">New .mp4 files added to the Drive folder get the next number when you sync. Numbers never change or get reused.</p>
+  </div>`;
+}
+function viewPlaylists(p){
+  return `
+  <div class="card"><h2>${esc(p.name)}'s playlists</h2>
+    <ul class="list">${p.playlists.map(pl => `<li><span class="t">${esc(pl.name)} <span class="mute">· ${pl.items.length} · ${pl.items.slice(0, 8).map(n => '#' + n).join(' ')}${pl.items.length > 8 ? ' …' : ''}</span></span>
+      <button class="btn sm" data-act="playpl" data-id="${pl.id}">▶</button>
+      <button class="btn sm" data-act="editpl" data-id="${pl.id}">Edit</button></li>`).join('') || '<li class="mute">No playlists yet.</li>'}</ul>
+    <p><button class="btn pri" data-act="newpl">＋ New playlist</button></p>
+  </div>
+  <div class="card"><h2>Weekly schedule</h2>
+    <div class="days">${DAYS.map(([k, n]) => `<label>${n}<select data-day="${k}">
+      <option value="">— nothing —</option>${p.playlists.map(pl => `<option value="${pl.id}" ${p.schedule[k] === pl.id ? 'selected' : ''}>${esc(pl.name)}</option>`).join('')}
+    </select></label>`).join('')}</div>
+  </div>`;
+}
+function viewEditor(){
+  const e = S.editing;
+  return `
+  <div class="card"><h2>${e.id ? 'Edit playlist' : 'New playlist'}</h2>
+    <input id="ed-name" placeholder="Playlist name" value="${esc(e.name)}">
+    <div class="row" style="margin:.75rem 0"><input id="ed-add" inputmode="numeric" placeholder="Add numbers: 3, 5-8, 12"><button class="btn" data-act="ed-add">Add</button></div>
+    <ol class="list">${e.items.map((n, i) => { const it = itemByNum(n);
+      return it ? itemRow(it, ctl(i)) : `<li><span class="num">${n}</span><span class="t warn">Not in library</span>${ctl(i)}</li>`; }).join('') || '<li class="mute">Empty — add numbers above.</li>'}</ol>
+    <div class="row" style="margin-top:1rem"><button class="btn pri" data-act="ed-save">Save</button><button class="btn" data-act="ed-cancel">Cancel</button>
+      ${e.id ? '<button class="btn danger" data-act="ed-delete">Delete playlist</button>' : ''}</div>
+  </div>`;
+  function ctl(i){ return `<button class="btn sm" data-act="ed-up" data-i="${i}">↑</button><button class="btn sm" data-act="ed-down" data-i="${i}">↓</button><button class="btn sm danger" data-act="ed-del" data-i="${i}">✕</button>`; }
+}
+function viewSettings(p){
+  return `
+  <div class="card"><h2>Profile</h2>
+    <p class="big">${esc(p.name)}</p>
+    <div class="row"><button class="btn" data-act="switchprofile">Switch profile</button><button class="btn" data-act="renameprofile">Rename</button><button class="btn danger" data-act="deleteprofile">Delete profile</button></div>
+  </div>
+  <div class="card"><h2>Family link</h2>
+    <p class="mute">Send this to family so the app opens straight to this folder. They still sign in with their own Google account.</p>
+    <div class="row"><button class="btn pri" data-act="copylink">Copy family link</button><button class="btn" data-act="changefolder">Change folder</button></div>
+  </div>
+  <div class="card"><h2>Account</h2>
+    <p class="mute">Library: ${S.cfg.items.length} videos · ${S.cfg.profiles.length} profiles${S.cfg.updatedAt ? ' · last saved ' + new Date(S.cfg.updatedAt).toLocaleString() : ''}</p>
+    <button class="btn danger" data-act="signout">Sign out</button>
+  </div>`;
+}
+function renderPlayer(){
+  const it = curItem();
+  if (!it){ $('#player').hidden = true; return; }
+  $('#now').innerHTML = `<span class="num">${it.num}</span> <b>${esc(it.title)}</b> <span class="mute">· ${S.qi + 1} of ${S.queue.length}${S.qLabel ? ' · ' + esc(S.qLabel) : ''}</span>`;
+  $('#loopbtn').textContent = 'Loop: ' + (S.loop ? 'on' : 'off');
+  $('#queue').innerHTML = S.queue.map((q, i) => `<li class="${i === S.qi ? 'cur' : ''}"><span class="num">${q.num}</span><span class="t">${esc(q.title)}</span><button class="btn sm" data-act="jump" data-i="${i}">▶</button></li>`).join('');
+}
+
+/* ---------- boot ---------- */
+function readHashFolder(){
+  const m = location.hash.match(/folder=([\w-]+)/);
+  if (m){ store.set('fp_folder', m[1]); history.replaceState(null, '', location.pathname + location.search); }
+}
+async function boot(){
+  readHashFolder();
+  if (CLIENT_ID.startsWith('PASTE')) return showGate('setup');
+  if (!('serviceWorker' in navigator)) return showGate('nosw');
+  await setupSW();
+  try {
+    const t = JSON.parse(sessionStorage.getItem('fp_tok') || 'null');
+    if (t && t.exp > Date.now()){ S.token = t.token; S.tokenExp = t.exp; sendTokenToSW(); scheduleRefresh(); }
+  } catch {}
+  if (!tokenValid()) return showGate('signin');
+  afterSignIn();
+}
+async function afterSignIn(){
+  S.folderId = store.get('fp_folder');
+  if (!S.folderId) return showGate('folder');
+  showGate('loading');
+  try {
+    S.cfgId = await findConfig(S.folderId);
+    if (!S.cfgId) S.cfgId = await createConfig(S.folderId, normalizeCfg({}));
+    S.cfg = await readConfig(S.cfgId);
+  } catch (e){
+    if (e instanceof AuthErr) return showGate('signin');
+    return showGate('error', e.message);
+  }
+  S.profileId = store.get('fp_profile_' + S.folderId);
+  if (S.cfg.items.some(i => i.type === 'youtube')) ensureYTApi().catch(() => {});
+  if (!curProfile()) return showGate('profile');
+  showApp();
+  syncFolder(true);
+}
+function pickProfile(id){ S.profileId = id; store.set('fp_profile_' + S.folderId, id); S.editing = null; showApp(); }
+
+/* ---------- events ---------- */
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
+  const a = b.dataset.act, n = Number(b.dataset.n), i = Number(b.dataset.i), p = curProfile();
+  switch (a){
+    case 'signin':
+      requestToken('').then(afterSignIn).catch(err => toast(err.message, 4500)); break;
+    case 'reauth':
+      requestToken('').then(() => { if (curItem()?.type === 'drive' && S.resumeAt) playCurrent(); }).catch(err => toast(err.message, 4500)); break;
+    case 'setfolder': {
+      const id = parseFolderId($('#folderin').value);
+      if (!id) return toast('Paste the folder\'s link from Google Drive');
+      store.set('fp_folder', id); afterSignIn(); break;
+    }
+    case 'retry': afterSignIn(); break;
+    case 'changefolder':
+      if (S.cfg && !confirm('Switch to a different Drive folder?')) return;
+      stopPlayer(); store.set('fp_folder', null); S.cfg = null; showGate('folder'); break;
+    case 'pickprofile': pickProfile(b.dataset.id); break;
+    case 'createprofile': {
+      const name = $('#newprof').value.trim(); if (!name) return toast('Type a name first');
+      const id = uid();
+      if (await saveCfg(cfg => { cfg.profiles.push({ id, name, playlists: [], schedule: {} }); })) pickProfile(id);
+      break;
+    }
+    case 'switchprofile': stopPlayer(); showGate('profile'); break;
+    case 'renameprofile': {
+      const name = prompt('Rename profile', p.name); if (!name?.trim()) return;
+      saveCfg(cfg => { const x = curProfile(cfg); if (x) x.name = name.trim(); }); break;
+    }
+    case 'deleteprofile':
+      if (!confirm(`Delete profile "${p.name}" and all its playlists?`)) return;
+      if (await saveCfg(cfg => { cfg.profiles = cfg.profiles.filter(x => x.id !== S.profileId); })){ S.profileId = null; showGate('profile'); }
+      break;
+    case 'tab': S.tab = b.dataset.tab; S.editing = null; render(); break;
+    case 'key': {
+      const k = b.dataset.k;
+      S.quick = k === 'clear' ? '' : k === '⌫' ? S.quick.slice(0, -1) : S.quick + (k === ',' ? ', ' : k);
+      $('#quick').value = S.quick; break;
+    }
+    case 'quickplay': {
+      S.quick = $('#quick').value;
+      const { nums, bad } = parseNumbers(S.quick);
+      if (bad.length) toast(`Ignored: ${bad.join(' ')}`);
+      if (!nums.length) return toast('Type some numbers first');
+      playQueue(nums, 'Quick play'); break;
+    }
+    case 'playpl': {
+      const pl = p.playlists.find(x => x.id === b.dataset.id);
+      if (!pl?.items.length) return toast('That playlist is empty');
+      playQueue(pl.items, pl.name); break;
+    }
+    case 'playone': playQueue([n], ''); break;
+    case 'enqueue': {
+      const it = itemByNum(n);
+      if (!S.queue.length) playQueue([n], 'Queue');
+      else { S.queue.push(it); renderPlayer(); toast(`#${n} added to queue`); }
+      break;
+    }
+    case 'rename': {
+      const it = itemByNum(n); const t = prompt(`Rename #${n}`, it.title); if (!t?.trim()) return;
+      saveCfg(cfg => { const x = cfg.items.find(q => q.num === n); if (x) x.title = t.trim(); }); break;
+    }
+    case 'remove':
+      if (!confirm(`Remove #${n} from the library? It will also be taken out of every playlist. The number won't be reused.`)) return;
+      saveCfg(cfg => {
+        cfg.items = cfg.items.filter(q => q.num !== n);
+        cfg.profiles.forEach(pr => pr.playlists.forEach(pl => { pl.items = pl.items.filter(x => x !== n); }));
+      }); break;
+    case 'addyt': await addYouTube($('#yturl').value); break;
+    case 'sync': syncFolder(false); break;
+    case 'newpl': S.editing = { id: null, name: '', items: [] }; render(); break;
+    case 'editpl': {
+      const pl = p.playlists.find(x => x.id === b.dataset.id);
+      S.editing = { id: pl.id, name: pl.name, items: pl.items.slice() }; render(); break;
+    }
+    case 'ed-add': {
+      S.editing.name = $('#ed-name').value;
+      const { nums, bad } = parseNumbers($('#ed-add').value);
+      if (bad.length) toast(`Ignored: ${bad.join(' ')}`);
+      const unknown = nums.filter(x => !itemByNum(x));
+      if (unknown.length) toast(`Not in library: #${unknown.join(', #')}`, 4000);
+      S.editing.items.push(...nums.filter(x => itemByNum(x))); render(); break;
+    }
+    case 'ed-up': case 'ed-down': {
+      S.editing.name = $('#ed-name').value;
+      const arr = S.editing.items, j = a === 'ed-up' ? i - 1 : i + 1;
+      if (j < 0 || j >= arr.length) return;
+      [arr[i], arr[j]] = [arr[j], arr[i]]; render(); break;
+    }
+    case 'ed-del': S.editing.name = $('#ed-name').value; S.editing.items.splice(i, 1); render(); break;
+    case 'ed-cancel': S.editing = null; render(); break;
+    case 'ed-save': {
+      const ed = S.editing, name = $('#ed-name').value.trim();
+      if (!name) return toast('Give the playlist a name');
+      const ok = await saveCfg(cfg => {
+        const pr = curProfile(cfg); if (!pr) return;
+        const pl = ed.id && pr.playlists.find(x => x.id === ed.id);
+        if (pl){ pl.name = name; pl.items = ed.items; }
+        else pr.playlists.push({ id: ed.id || uid(), name, items: ed.items });
+      });
+      if (ok){ S.editing = null; render(); toast('Saved'); }
+      break;
+    }
+    case 'ed-delete': {
+      const ed = S.editing;
+      if (!confirm('Delete this playlist?')) return;
+      if (await saveCfg(cfg => {
+        const pr = curProfile(cfg); if (!pr) return;
+        pr.playlists = pr.playlists.filter(x => x.id !== ed.id);
+        for (const k in pr.schedule) if (pr.schedule[k] === ed.id) delete pr.schedule[k];
+      })){ S.editing = null; render(); }
+      break;
+    }
+    case 'prev': prev(); break;
+    case 'next': next(); break;
+    case 'jump': S.qi = i; playCurrent(); break;
+    case 'loop': S.loop = !S.loop; renderPlayer(); break;
+    case 'full': toggleFull(); break;
+    case 'close': stopPlayer(); break;
+    case 'copylink': {
+      const link = location.origin + location.pathname + '#folder=' + S.folderId;
+      navigator.clipboard?.writeText(link).then(() => toast('Link copied')).catch(() => prompt('Copy this link:', link));
+      if (!navigator.clipboard) prompt('Copy this link:', link);
+      break;
+    }
+    case 'signout':
+      if (!confirm('Sign out of Google on this device?')) return;
+      stopPlayer();
+      try { google.accounts.oauth2.revoke(S.token, () => {}); } catch {}
+      S.token = null; S.tokenExp = 0; S.cfg = null;
+      try { sessionStorage.removeItem('fp_tok'); } catch {}
+      navigator.serviceWorker?.controller?.postMessage({ type: 'signout' });
+      showGate('signin'); break;
+  }
+});
+document.addEventListener('change', e => {
+  const day = e.target.dataset?.day; if (!day) return;
+  const val = e.target.value;
+  saveCfg(cfg => { const pr = curProfile(cfg); if (!pr) return; if (val) pr.schedule[day] = val; else delete pr.schedule[day]; })
+    .then(ok => ok && toast('Schedule saved'));
+});
+document.addEventListener('input', e => {
+  if (e.target.id === 'filter'){ S.filter = e.target.value; $('#librows').innerHTML = libRows(); }
+  else if (e.target.id === 'quick') S.quick = e.target.value;
+});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const map = { quick: 'quickplay', yturl: 'addyt', folderin: 'setfolder', newprof: 'createprofile', 'ed-add': 'ed-add' };
+  const act = map[e.target.id]; if (act) document.querySelector(`[data-act="${act}"]`)?.click();
+});
+setupVideoEvents();
+</script>
+<script src="https://accounts.google.com/gsi/client" async defer onload="gisLoaded()" onerror="document.getElementById('gate').innerHTML='<p>Could not load Google sign-in. Check your connection and reload.</p>'"></script>
+</body>
+</html>
