@@ -586,6 +586,10 @@ function playQueue(nums, label){
   nums.forEach(n => { const it = itemByNum(n); if (it && !it.missing) items.push(it); else skipped.push(n); });
   if (skipped.length) toast(`Skipped #${skipped.join(', #')} (not in library)`, 4000);
   if (!items.length) return;
+  startQueue(items, label);
+}
+function startQueue(items, label){
+  if (!items.length) return;
   S.queue = items; S.qi = 0; S.qLabel = label;
   $('#player').hidden = false;
   playCurrent();
@@ -598,7 +602,15 @@ function playCurrent(){
     try { ytPlayer?.stopVideo?.(); } catch {}
     ytw.hidden = true; vid.hidden = false;
     showAudioArt(it.media === 'audio' ? it : null);
-    const go = () => {
+    const go = async () => {
+      if (it.virtual && !it.size){ // pasted Drive link: look up size (for seeking) and whether it's audio
+        try {
+          const m = await (await api(`${API}/files/${encodeURIComponent(it.id)}?fields=size,mimeType&supportsAllDrives=true`)).json();
+          it.size = m.size;
+          if (m.mimeType?.startsWith('audio/')){ it.media = 'audio'; showAudioArt(it); }
+        } catch {}
+        if (curItem() !== it) return;
+      }
       vid.src = `drive-stream/${encodeURIComponent(it.id)}${it.size ? `?size=${it.size}` : ''}`;
       // Browsers may block auto-start after arriving from a link; offer a tap instead.
       vid.play().then(() => showTapToPlay(false)).catch(e => { if (e.name === 'NotAllowedError') showTapToPlay(true); });
@@ -821,7 +833,7 @@ function renderPlayer(){
   const it = curItem();
   markNowPlaying();
   if (!it){ $('#player').hidden = true; return; }
-  $('#now').innerHTML = `<span class="num">${it.num}</span> <b>${esc(it.title)}</b> <span class="mute">· ${S.qi + 1} of ${S.queue.length}${S.qLabel ? ' · ' + esc(S.qLabel) : ''}</span>`;
+  $('#now').innerHTML = `<span class="num">${it.num}</span> <b>${esc(it.title)}</b> <span class="mute">· ${S.qi + 1} of ${S.queue.length}${S.qLabel && S.qLabel !== it.title ? ' · ' + esc(S.qLabel) : ''}</span>`;
   $('#loopbtn').textContent = 'Loop: ' + (S.loop ? 'on' : 'off');
   $('#queue').innerHTML = S.queue.map((q, i) => `<li class="${i === S.qi ? 'cur' : ''}"><span class="num">${q.num}</span><span class="t">${esc(q.title)}</span><button class="btn sm" data-act="jump" data-i="${i}">▶</button></li>`).join('');
 }
@@ -925,10 +937,26 @@ function resolveLink(link, cfg = S.cfg){
   if (!link) return null;
   if (link.url){
     let host = ''; try { host = new URL(link.url).hostname.replace(/^www\./, ''); } catch {}
-    return { kind: 'url', url: link.url, host };
+    const v = virtualItem(link.url);
+    if (v) return { kind: 'item', item: v, url: link.url, host };   // plays inside the player
+    return { kind: 'url', url: link.url, host };                      // any other website: new tab
   }
   const it = itemByRef(link.ref, cfg);
   return it && !it.missing ? { kind: 'item', item: it } : { kind: 'missing', item: it };
+}
+/* A pasted YouTube or Google Drive file link that isn't in the library still plays in the player. */
+function parseDriveFileId(u){
+  const m = String(u).match(/drive\.google\.com\/(?:file\/d\/|open\?(?:.*&)?id=|uc\?(?:.*&)?id=)([\w-]{10,})/);
+  return m ? m[1] : null;
+}
+const virtualCache = new Map();
+function virtualItem(url){
+  if (virtualCache.has(url)) return virtualCache.get(url);
+  const yt = parseYouTubeId(url), dr = !yt && parseDriveFileId(url);
+  const v = yt ? { type: 'youtube', id: yt, num: '↗', title: 'YouTube video', virtual: true }
+          : dr ? { type: 'drive', id: dr, num: '↗', title: 'Drive file', virtual: true, media: 'video' } : null;
+  virtualCache.set(url, v);
+  return v;
 }
 const hostLabel = h => /(^|\.)google\.com$/.test(h) ? 'Drive' : /youtu\.?be/.test(h) ? 'YouTube' : (h || 'Link');
 function parseLinkInput(text, cfg = S.cfg){
@@ -940,16 +968,20 @@ function parseLinkInput(text, cfg = S.cfg){
     return it ? { link: { ref: refOf(it) }, item: it } : { error: `No file #${n[1]} in the library` };
   }
   if (/^https?:\/\//i.test(s)){
-    const yt = parseYouTubeId(s);
-    const lib = yt && cfg.items.find(i => i.type === 'youtube' && i.id === yt);
+    const yt = parseYouTubeId(s), dr = !yt && parseDriveFileId(s);
+    const lib = (yt && cfg.items.find(i => i.type === 'youtube' && i.id === yt)) || (dr && cfg.items.find(i => i.type === 'drive' && i.id === dr));
     return lib ? { link: { ref: refOf(lib) }, item: lib } : { link: { url: s } };
   }
   return { error: 'Use a library number (like 12) or a link starting with https://' };
 }
+const linkStatus = r => !r ? '' : r.kind === 'url' ? `${hostLabel(r.host)} link · opens in a new tab`
+  : r.kind === 'missing' ? '<span class="warn">file removed from Drive</span>'
+  : r.item.virtual ? `${r.item.type === 'youtube' ? 'YouTube' : 'Drive'} link · plays here`
+  : `#${r.item.num}${r.item.media === 'audio' ? ' · audio' : r.item.type === 'youtube' ? ' · YouTube' : ''}`;
 function linkInputValue(link){
   const r = resolveLink(link);
   if (!r) return '';
-  if (r.kind === 'url') return r.url;
+  if (r.url) return r.url;
   return r.item ? String(r.item.num) : '';
 }
 
@@ -1071,9 +1103,7 @@ function catBody(){
 function ciRow(sec, ci, idx, curRef){
   const r = resolveLink(ci.link), ri = resolveLink(ci.intro);
   const tags = [...ci.when, ...ci.where, ...ci.pose].filter(k => ICONS[k]).map(k => `<span class="tagi" role="img" title="${TAG_LABEL[k]}" aria-label="${TAG_LABEL[k]}">${ICONS[k]}</span>`).join('');
-  const status = !r ? 'No link yet'
-    : r.kind === 'item' ? `#${r.item.num}${r.item.media === 'audio' ? ' · audio' : r.item.type === 'youtube' ? ' · YouTube' : ''}`
-    : r.kind === 'url' ? `${hostLabel(r.host)} link` : '<span class="warn">File removed from Drive</span>';
+  const status = r ? linkStatus(r) : 'No link yet';
   const noteOpen = S.showNotes || S.openNotes.has(ci.id);
   const noteBtn = ci.note ? `<button class="iconbtn ${noteOpen ? 'on' : ''}" data-act="cinote" title="${noteOpen ? 'Hide' : 'Show'} note" aria-expanded="${noteOpen}">${ICONS.note}</button>` : '';
   const action = S.catEdit
@@ -1086,7 +1116,7 @@ function ciRow(sec, ci, idx, curRef){
   let intro = '';
   if (ci.intro){
     const both = r?.kind === 'item' && ri?.kind === 'item';
-    const ist = !ri ? '' : ri.kind === 'item' ? `#${ri.item.num}` : ri.kind === 'url' ? `${hostLabel(ri.host)} link` : '<span class="warn">file removed</span>';
+    const ist = linkStatus(ri);
     intro = `<div class="ci-intro">↳ <b>Introduction</b> <span>${ist}</span>
       ${ri && ri.kind !== 'missing' && !S.catEdit ? `<button class="btn sm" data-act="ciintro">${ri.kind === 'url' ? 'Open intro ↗' : '▶ Intro'}</button>` : ''}
       ${both && !S.catEdit ? `<button class="btn sm" data-act="ciboth">▶ Intro, then meditation</button>` : ''}</div>`;
@@ -1109,12 +1139,13 @@ function findCI(secId, ciId, cfg = S.cfg){
   const sec = cfg.catalog?.sections.find(s => s.id === secId);
   return { sec, ci: sec?.items.find(i => i.id === ciId) };
 }
+const asQueued = (it, title) => it.virtual ? { ...it, title } : it;
 function openLink(link, label){
   const r = resolveLink(link);
   if (!r) return toast('No link yet — use Edit catalog to add one');
   if (r.kind === 'missing') return toast('That file is no longer in the Drive folder');
   if (r.kind === 'url') return void window.open(r.url, '_blank', 'noopener');
-  playQueue([r.item.num], label);
+  startQueue([asQueued(r.item, label)], label);
 }
 function fillChecks(fs, opts, chosen){
   fs.innerHTML = fs.querySelector('legend').outerHTML + opts.map(([k, l]) =>
@@ -1123,7 +1154,8 @@ function fillChecks(fs, opts, chosen){
 function linkHint(inputId){
   const v = $('#' + inputId).value, h = $('#' + inputId + '-h'), r = parseLinkInput(v);
   h.className = 'hint' + (r.error ? ' bad' : r.link ? ' ok' : '');
-  h.textContent = r.error || (r.item ? `#${r.item.num} · ${r.item.title}` : r.link?.url ? 'Opens in a new tab' : '');
+  const vi = r.link?.url && virtualItem(r.link.url);
+  h.textContent = r.error || (r.item ? `#${r.item.num} · ${r.item.title}` : vi ? `${vi.type === 'youtube' ? 'YouTube' : 'Drive'} link · plays in the player` : r.link?.url ? 'Website · opens in a new tab' : '');
 }
 function openEditor(secId, ciId){
   const { ci } = ciId ? findCI(secId, ciId) : { ci: newCI('', '') };
@@ -1214,7 +1246,7 @@ document.addEventListener('click', async e => {
       else if (a === 'ciintro') openLink(ci.intro, `${ci.title} — introduction`);
       else if (a === 'ciboth'){
         const r = resolveLink(ci.link), ri = resolveLink(ci.intro);
-        if (r?.kind === 'item' && ri?.kind === 'item') playQueue([ri.item.num, r.item.num], ci.title);
+        if (r?.kind === 'item' && ri?.kind === 'item') startQueue([asQueued(ri.item, `${ci.title} — introduction`), asQueued(r.item, ci.title)], ci.title);
       } else if (a === 'ciedit') openEditor(sec.id, ci.id);
       else if (a === 'cimove'){
         const dir = Number(b.dataset.dir), secId = sec.id, ciId = ci.id;
@@ -1233,8 +1265,7 @@ document.addEventListener('click', async e => {
     }
     case 'secplay': {
       const sec = S.cfg.catalog.sections.find(s => s.id === b.dataset.sec);
-      const nums = sec.items.map(ci => resolveLink(ci.link)).filter(r => r?.kind === 'item').map(r => r.item.num);
-      playQueue(nums, sec.title); break;
+      startQueue(sec.items.map(ci => [ci, resolveLink(ci.link)]).filter(([, r]) => r?.kind === 'item').map(([ci, r]) => asQueued(r.item, ci.title)), sec.title); break;
     }
     case 'secadd': openEditor(b.dataset.sec, null); break;
     case 'secnew': {
