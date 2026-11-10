@@ -48,6 +48,7 @@ input,select{font:inherit;padding:.6rem .75rem;border-radius:10px;border:1px sol
 #audioart{position:absolute;inset:0 0 3.5rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5rem;color:#fff;text-align:center;padding:1rem;pointer-events:none;background:radial-gradient(circle at 50% 40%,#2a3550,#000 70%)}
 #audioart .note{font-size:3.5rem;line-height:1}
 #audioart .ttl{font-size:1.2rem;font-weight:600;max-width:90%;overflow-wrap:anywhere}
+#tapplay{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:1.3rem;padding:.9rem 1.6rem;z-index:2}
 #stage:fullscreen{max-height:none;aspect-ratio:auto}
 .now{padding:.75rem 1rem}
 .controls{display:flex;gap:.5rem;flex-wrap:wrap;padding:0 1rem 1rem}
@@ -65,13 +66,14 @@ code{background:var(--chip);padding:.05rem .35rem;border-radius:5px}
 <div id="gate"></div>
 
 <div id="app" hidden>
-  <header class="top"><h1>Family Player</h1><button class="chip" id="profchip" data-act="switchprofile"></button></header>
+  <header class="top"><h1>Family Player</h1><a class="chip" href="catalog.html" style="text-decoration:none">📖 Catalog</a><button class="chip" id="profchip" data-act="switchprofile"></button></header>
   <main>
     <section id="player" hidden>
       <div id="stage">
         <video id="vid" controls playsinline preload="metadata"></video>
         <div id="ytwrap" hidden><div id="ytmount"></div></div>
         <div id="audioart" hidden></div>
+        <button id="tapplay" class="btn pri" hidden>▶ Tap to play</button>
       </div>
       <div class="now" id="now"></div>
       <div class="now warn" id="diag" hidden></div>
@@ -472,13 +474,14 @@ function playCurrent(){
     showAudioArt(it.media === 'audio' ? it : null);
     const go = () => {
       vid.src = `drive-stream/${encodeURIComponent(it.id)}${it.size ? `?size=${it.size}` : ''}`;
-      vid.play().catch(() => {});
+      // Browsers may block auto-start after arriving from a link; offer a tap instead.
+      vid.play().then(() => showTapToPlay(false)).catch(e => { if (e.name === 'NotAllowedError') showTapToPlay(true); });
     };
     if (tokenValid()) go(); else withToken(go);
   } else {
     vid.pause(); vid.removeAttribute('src'); vid.load();
     vid.hidden = true; ytw.hidden = false;
-    showAudioArt(null);
+    showAudioArt(null); showTapToPlay(false);
     ensureYT().then(p => p.loadVideoById(it.id)).catch(() => { toast('YouTube player failed to load — skipping'); setTimeout(next, 1500); });
   }
   renderPlayer();
@@ -516,6 +519,8 @@ async function diagnoseDrive(it, code){
   } catch (e){ parts.push('Stream test could not run: ' + e.message); }
   return parts.join(' ');
 }
+function showTapToPlay(on){ $('#tapplay').hidden = !on; }
+$('#tapplay').addEventListener('click', () => { $('#vid').play().then(() => showTapToPlay(false)).catch(() => {}); });
 function showAudioArt(it){
   const a = $('#audioart');
   a.hidden = !it;
@@ -523,7 +528,7 @@ function showAudioArt(it){
 }
 function stopPlayer(){
   showDiag('');
-  showAudioArt(null);
+  showAudioArt(null); showTapToPlay(false);
   const vid = $('#vid');
   vid.pause(); vid.removeAttribute('src'); vid.load();
   try { ytPlayer?.stopVideo?.(); } catch {}
@@ -700,10 +705,22 @@ function renderPlayer(){
 }
 
 /* ---------- boot ---------- */
+/* Links into the player: #folder=<id> and/or #play=4 or #play=3,7,12 (used by catalog.html). */
 function readHashFolder(){
-  const m = location.hash.match(/folder=([\w-]+)/);
-  if (m){ store.set('fp_folder', m[1]); history.replaceState(null, '', location.pathname + location.search); }
+  const h = decodeURIComponent(location.hash);
+  const m = h.match(/folder=([\w-]+)/);
+  const p = h.match(/play=([\d,\s-]+)/);
+  if (m) store.set('fp_folder', m[1]);
+  if (p) S.pendingPlay = p[1];
+  if (m || p) history.replaceState(null, '', location.pathname + location.search);
 }
+function runPendingPlay(){
+  if (!S.pendingPlay || !S.cfg || !curProfile()) return;
+  const { nums } = parseNumbers(S.pendingPlay);
+  S.pendingPlay = null;
+  if (nums.length) playQueue(nums, 'From catalog');
+}
+window.addEventListener('hashchange', () => { readHashFolder(); runPendingPlay(); });
 async function boot(){
   readHashFolder();
   if (CLIENT_ID.startsWith('PASTE')) return showGate('setup');
@@ -733,9 +750,10 @@ async function afterSignIn(){
   if (S.cfg.items.some(i => i.type === 'youtube')) ensureYTApi().catch(() => {});
   if (!curProfile()) return showGate('profile');
   showApp();
+  runPendingPlay();
   syncFolder(true);
 }
-function pickProfile(id){ S.profileId = id; store.set('fp_profile_' + S.folderId, id); S.editing = null; showApp(); if (!S.lastScan) syncFolder(true); }
+function pickProfile(id){ S.profileId = id; store.set('fp_profile_' + S.folderId, id); S.editing = null; showApp(); runPendingPlay(); if (!S.lastScan) syncFolder(true); }
 
 /* ---------- events ---------- */
 document.addEventListener('click', async e => {
