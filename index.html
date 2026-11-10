@@ -4,61 +4,168 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Family Player</title>
-<meta name="theme-color" content="#111418">
+<meta name="theme-color" content="#0b0f2a">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#f6f7f9;--card:#fff;--ink:#14171c;--mute:#5d6673;--line:#dde1e7;--acc:#2f6fed;--acc-ink:#fff;--warn:#f5a524;--bad:#c0262d;--chip:#eef1f5;--r:12px}
-@media (prefers-color-scheme:dark){:root{--bg:#0f1216;--card:#181c22;--ink:#e9edf2;--mute:#99a3b0;--line:#2a3039;--acc:#5b8cff;--acc-ink:#fff;--bad:#ff6b6b;--chip:#222831}}
+/* ===== Calm night sky (dark) / warm ivory (light) ===== */
+:root{
+  --r:18px;
+  --bg:#0b0f2a;
+  --bg-grad:radial-gradient(1200px 700px at 12% -10%,#26337a 0%,transparent 60%),radial-gradient(900px 620px at 110% 8%,#0f5a64 0%,transparent 55%),linear-gradient(180deg,#0b0f2a 0%,#0a1a2e 55%,#08202a 100%);
+  --stars:radial-gradient(1.2px 1.2px at 8% 22%,rgba(255,255,255,.75),transparent 60%),radial-gradient(1px 1px at 27% 68%,rgba(255,255,255,.55),transparent 60%),radial-gradient(1.4px 1.4px at 46% 12%,rgba(255,244,214,.8),transparent 60%),radial-gradient(1px 1px at 63% 44%,rgba(255,255,255,.5),transparent 60%),radial-gradient(1.2px 1.2px at 78% 76%,rgba(255,255,255,.6),transparent 60%),radial-gradient(1px 1px at 91% 31%,rgba(255,244,214,.7),transparent 60%),radial-gradient(1px 1px at 15% 88%,rgba(255,255,255,.45),transparent 60%),radial-gradient(1.3px 1.3px at 55% 92%,rgba(255,255,255,.5),transparent 60%);
+  --hdr:rgba(11,15,42,.62);
+  --card:rgba(255,255,255,.055);--card-solid:#151b3f;--field:rgba(255,255,255,.05);
+  --ink:#eef0fb;--mute:#a9afd2;--line:rgba(255,255,255,.11);
+  --gold:#e9c46a;--gold-soft:rgba(233,196,106,.12);--teal:#62d2d8;
+  --acc-ink:#1b1630;--chip:rgba(255,255,255,.07);
+  --pri-bg:linear-gradient(135deg,#f3d78f,#d6a446);
+  --warn:#f3c26b;--bad:#ff9a9a;
+  --glow:0 0 0 1px rgba(233,196,106,.45),0 0 26px rgba(233,196,106,.20);
+  --shadow:0 12px 32px rgba(0,0,0,.32);
+  color-scheme:dark;
+}
+@media (prefers-color-scheme:light){:root{
+  --bg:#fbf7ee;
+  --bg-grad:radial-gradient(1000px 600px at 8% -12%,#dff0ec 0%,transparent 60%),radial-gradient(800px 520px at 108% 0%,#fbe6cf 0%,transparent 55%),linear-gradient(180deg,#fbf7ee,#f5efe2);
+  --stars:none;
+  --hdr:rgba(251,247,238,.78);
+  --card:rgba(255,255,255,.74);--card-solid:#fffdf8;--field:#fff;
+  --ink:#1d2536;--mute:#677086;--line:rgba(30,55,75,.12);
+  --gold:#a8771f;--gold-soft:rgba(168,119,31,.10);--teal:#0f7c86;
+  --acc-ink:#fff;--chip:rgba(15,124,134,.07);
+  --pri-bg:linear-gradient(135deg,#15939d,#0e6d78);
+  --warn:#9a5d06;--bad:#b42318;
+  --glow:0 0 0 1px rgba(15,124,134,.40),0 6px 22px rgba(15,124,134,.14);
+  --shadow:0 10px 26px rgba(70,55,25,.08);
+  color-scheme:light;
+}}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-html{font-size:clamp(15px,0.6vw + 12px,22px)}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.4}
-header.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:.6rem;padding:.6rem 1rem;background:var(--card);border-bottom:1px solid var(--line)}
-header.top h1{font-size:1.1rem;margin:0;flex:1}
-.chip{background:var(--chip);border:0;color:var(--ink);border-radius:999px;padding:.35rem .8rem;font:inherit;font-size:.9rem;cursor:pointer}
-nav.tabs{display:flex;gap:.4rem;margin:1rem 0;overflow-x:auto}
-nav.tabs button{flex:1;min-width:5.5rem;padding:.6rem;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:var(--r);font:inherit;cursor:pointer}
-nav.tabs button.on{background:var(--acc);color:var(--acc-ink);border-color:var(--acc)}
-main{max-width:1100px;margin:0 auto;padding:0 1rem 4rem}
-.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:1rem;margin:1rem 0}
-.card h2{font-size:.85rem;margin:0 0 .6rem;color:var(--mute);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
-.big{font-size:1.25rem;font-weight:600}
-button.btn{font:inherit;padding:.6rem 1rem;border-radius:10px;border:1px solid var(--line);background:var(--chip);color:var(--ink);cursor:pointer;min-height:2.6rem}
-button.pri{background:var(--acc);color:var(--acc-ink);border-color:var(--acc)}
+html{font-size:clamp(15px,0.55vw + 12.5px,21px)}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font-family:"Nunito Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.45;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0;z-index:-1;background:var(--stars),var(--bg-grad);pointer-events:none}
+.serif{font-family:"Cormorant Garamond",Georgia,serif}
+a{color:var(--teal)}
+svg.i{width:1.1em;height:1.1em;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.15em}
+svg.i.fill{fill:currentColor;stroke:none}
+header.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:.6rem;padding:.65rem max(1rem,env(safe-area-inset-left));background:var(--hdr);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+header.top h1{margin:0;flex:1;font-family:"Cormorant Garamond",Georgia,serif;font-weight:600;font-size:1.55rem;letter-spacing:.01em;color:var(--ink)}
+header.top h1 .star{color:var(--gold);margin-right:.25rem}
+.chip{background:var(--chip);border:1px solid var(--line);color:var(--ink);border-radius:999px;padding:.4rem .9rem;font:inherit;font-size:.9rem;cursor:pointer}
+nav.tabs{display:flex;gap:.25rem;margin:1rem 0;padding:.3rem;background:var(--chip);border:1px solid var(--line);border-radius:999px;overflow-x:auto}
+nav.tabs button{flex:1;min-width:5.2rem;padding:.6rem .8rem;border:0;background:transparent;color:var(--mute);border-radius:999px;font:inherit;font-weight:600;cursor:pointer;transition:background .2s,color .2s}
+nav.tabs button.on{background:var(--pri-bg);color:var(--acc-ink);box-shadow:var(--glow)}
+main{max-width:1060px;margin:0 auto;padding:0 1rem 5rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:1.1rem 1.2rem;margin:1rem 0;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:var(--shadow)}
+.card h2,.label{font-size:.74rem;margin:0 0 .65rem;color:var(--gold);font-weight:700;text-transform:uppercase;letter-spacing:.14em}
+.big{font-size:1.2rem;font-weight:700}
+button.btn{font:inherit;font-size:.92rem;padding:.55rem 1.05rem;border-radius:999px;border:1px solid var(--line);background:var(--chip);color:var(--ink);cursor:pointer;min-height:2.5rem;transition:border-color .2s,transform .1s}
+button.btn:hover{border-color:var(--gold)}
+button.btn:active{transform:scale(.97)}
+button.pri{background:var(--pri-bg);color:var(--acc-ink);border-color:transparent;font-weight:700}
 button.danger{color:var(--bad)}
-button.sm{padding:.35rem .6rem;min-height:2.2rem;min-width:2.4rem}
-button:disabled{opacity:.5;cursor:default}
-input,select{font:inherit;padding:.6rem .75rem;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);min-height:2.6rem;width:100%}
+button.sm{padding:.3rem .75rem;min-height:2.1rem;min-width:2.3rem;font-size:.85rem}
+button:disabled{opacity:.45;cursor:default}
+input,select,textarea{font:inherit;padding:.6rem .8rem;border-radius:12px;border:1px solid var(--line);background:var(--field);color:var(--ink);min-height:2.6rem;width:100%}
+textarea{resize:vertical;line-height:1.5}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .row{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
 .row>input{flex:1;min-width:9rem;width:auto}
+.sp{flex:1}
 .list{list-style:none;margin:0;padding:0}
-.list li{display:flex;align-items:center;gap:.5rem;padding:.5rem 0;border-top:1px solid var(--line)}
+.list li{display:flex;align-items:center;gap:.5rem;padding:.55rem 0;border-top:1px solid var(--line)}
 .list li:first-child{border-top:0}
-.list li.cur{background:var(--chip);border-radius:8px;padding-left:.4rem}
-.num{display:inline-flex;align-items:center;justify-content:center;min-width:2.6rem;height:2.2rem;padding:0 .3rem;border-radius:8px;background:var(--chip);font-weight:700;font-variant-numeric:tabular-nums}
-.src{font-size:.7rem;padding:.1rem .4rem;border-radius:6px;border:1px solid var(--line);color:var(--mute);white-space:nowrap}
-.src.yt{color:#e5484d;border-color:currentColor}
+.list li.cur{background:var(--gold-soft);border-radius:10px;padding-left:.4rem}
+.num{display:inline-flex;align-items:center;justify-content:center;min-width:2.6rem;height:2.2rem;padding:0 .35rem;border-radius:10px;background:var(--gold-soft);color:var(--gold);font-weight:800;font-variant-numeric:tabular-nums}
+.src{font-size:.7rem;padding:.1rem .45rem;border-radius:999px;border:1px solid var(--line);color:var(--mute);white-space:nowrap}
+.src.yt{color:#ff7b7b;border-color:currentColor}
 .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mute{color:var(--mute)}
 .warn{color:var(--warn)}
-.pad{display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;max-width:26rem;margin-top:.75rem}
-.pad button{font-size:1.35rem;padding:.75rem 0}
-#player{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin:1rem 0;overflow:hidden}
+/* player */
+#player{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin:1rem 0;overflow:hidden;box-shadow:var(--shadow),var(--glow)}
 #stage{position:relative;background:#000;aspect-ratio:16/9;max-height:72vh;width:100%}
 #stage video,#ytwrap,#ytwrap iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
-#audioart{position:absolute;inset:0 0 3.5rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5rem;color:#fff;text-align:center;padding:1rem;pointer-events:none;background:radial-gradient(circle at 50% 40%,#2a3550,#000 70%)}
-#audioart .note{font-size:3.5rem;line-height:1}
-#audioart .ttl{font-size:1.2rem;font-weight:600;max-width:90%;overflow-wrap:anywhere}
+#audioart{position:absolute;inset:0 0 3.5rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5rem;color:#fff;text-align:center;padding:1rem;pointer-events:none;background:radial-gradient(circle at 50% 42%,#2c3a82 0%,#121845 38%,#05071a 75%)}
+#audioart .note{font-size:3.4rem;line-height:1;color:#e9c46a;text-shadow:0 0 28px rgba(233,196,106,.6)}
+#audioart .ttl{font-family:"Cormorant Garamond",Georgia,serif;font-size:1.6rem;font-weight:600;max-width:90%;overflow-wrap:anywhere}
 #tapplay{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:1.3rem;padding:.9rem 1.6rem;z-index:2}
 #stage:fullscreen{max-height:none;aspect-ratio:auto}
-.now{padding:.75rem 1rem}
-.controls{display:flex;gap:.5rem;flex-wrap:wrap;padding:0 1rem 1rem}
-#toast{position:fixed;left:50%;bottom:1.2rem;transform:translateX(-50%);background:#222;color:#fff;padding:.6rem 1rem;border-radius:10px;z-index:20;max-width:90vw;text-align:center}
-#authbar{position:sticky;top:0;z-index:10;background:var(--warn);color:#000;padding:.6rem 1rem;display:flex;gap:.75rem;align-items:center;justify-content:center;flex-wrap:wrap}
-#gate{max-width:34rem;margin:3rem auto;padding:0 1rem}
+.now{padding:.8rem 1.1rem}
+.controls{display:flex;gap:.5rem;flex-wrap:wrap;padding:0 1.1rem 1rem}
+#toast{position:fixed;left:50%;bottom:1.4rem;transform:translateX(-50%);background:var(--card-solid);color:var(--ink);border:1px solid var(--line);box-shadow:var(--shadow),var(--glow);padding:.65rem 1.1rem;border-radius:999px;z-index:30;max-width:90vw;text-align:center}
+#authbar{position:sticky;top:0;z-index:10;background:#f3c26b;color:#1b1630;padding:.6rem 1rem;display:flex;gap:.75rem;align-items:center;justify-content:center;flex-wrap:wrap}
+#gate{max-width:34rem;margin:3.5rem auto;padding:1.6rem;background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);backdrop-filter:blur(10px)}
+#gate h2{font-family:"Cormorant Garamond",Georgia,serif;font-size:2rem;font-weight:600;margin:.2rem 0 .6rem}
 #gate p{margin:.5rem 0}
 .days{display:grid;grid-template-columns:repeat(auto-fill,minmax(12rem,1fr));gap:.6rem}
 .days label{display:flex;flex-direction:column;gap:.25rem;font-size:.9rem;color:var(--mute)}
-code{background:var(--chip);padding:.05rem .35rem;border-radius:5px}
+code{background:var(--chip);padding:.05rem .35rem;border-radius:6px}
+/* play tab */
+.today{background:linear-gradient(135deg,rgba(233,196,106,.16),rgba(98,210,216,.08)),var(--card)}
+.quickbar{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding:.8rem 1rem}
+.quickbar label{font-size:.74rem;color:var(--gold);font-weight:700;text-transform:uppercase;letter-spacing:.14em;white-space:nowrap}
+.quickbar input{flex:1;min-width:10rem;width:auto}
+/* catalog */
+.cattools{display:grid;gap:.7rem;margin:1.2rem 0 .2rem}
+.fchips{display:flex;flex-wrap:wrap;gap:.45rem}
+.fchip{display:inline-flex;align-items:center;gap:.4rem;padding:.42rem .85rem;border-radius:999px;border:1px solid var(--line);background:var(--chip);color:var(--mute);font:inherit;font-size:.88rem;font-weight:600;cursor:pointer;transition:all .2s}
+.fchip:hover{color:var(--ink);border-color:var(--gold)}
+.fchip.on{background:var(--pri-bg);color:var(--acc-ink);border-color:transparent;box-shadow:var(--glow)}
+.fchips .sep{width:1px;background:var(--line);margin:0 .2rem}
+.catsec{padding:0;overflow:hidden}
+.sechead{display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;padding:1rem 1.2rem .85rem;border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--gold-soft),transparent 70%)}
+.card h2.sectitle{font-family:"Cormorant Garamond",Georgia,serif;font-size:1.6rem;font-weight:600;margin:0;line-height:1.1;color:var(--ink);text-transform:none;letter-spacing:.005em}
+.sectag{display:inline-block;margin-top:.35rem;font-size:.7rem;font-weight:700;letter-spacing:.06em;color:var(--gold);border:1px solid var(--gold);border-radius:999px;padding:.08rem .55rem;opacity:.85}
+.cilist{list-style:none;margin:0;padding:.35rem .5rem .55rem}
+.ci{border-radius:14px;padding:.6rem .65rem;transition:background .2s,box-shadow .3s}
+.ci+.ci{border-top:1px solid var(--line)}
+.ci:hover{background:var(--chip)}
+.ci.now{background:var(--gold-soft);box-shadow:var(--glow);border-top-color:transparent}
+.ci.now+.ci{border-top-color:transparent}
+.ci-main{display:flex;align-items:center;gap:.75rem}
+.part{flex:0 0 auto;min-width:3.7rem;text-align:center;font-size:.76rem;font-weight:800;color:var(--gold);background:var(--gold-soft);border-radius:10px;padding:.38rem .4rem;letter-spacing:.02em;font-variant-numeric:tabular-nums}
+.ci-text{flex:1;min-width:0}
+.ci-title{font-weight:700;font-size:1rem;line-height:1.3}
+.ci-meta{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem;margin-top:.22rem;font-size:.8rem;color:var(--mute)}
+.tagi{display:inline-flex;align-items:center;gap:.2rem;color:var(--gold)}
+.tagi svg.i{width:1.05rem;height:1.05rem}
+.ci.unlinked .ci-title{opacity:.62}
+.playbtn{flex:0 0 auto;width:2.8rem;height:2.8rem;border-radius:50%;display:grid;place-items:center;border:0;background:var(--pri-bg);color:var(--acc-ink);cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.25);transition:transform .15s,box-shadow .2s;font-size:1.05rem;font-weight:800}
+.playbtn:hover{transform:scale(1.07);box-shadow:var(--glow)}
+.playbtn svg.i{width:1.15rem;height:1.15rem;margin-left:.12rem}
+.playbtn.off{background:var(--chip);color:var(--mute);opacity:.45;box-shadow:none;cursor:default;transform:none}
+.iconbtn{flex:0 0 auto;width:2.35rem;height:2.35rem;border-radius:50%;display:grid;place-items:center;border:1px solid var(--line);background:transparent;color:var(--mute);cursor:pointer;transition:all .2s}
+.iconbtn:hover,.iconbtn.on{color:var(--gold);border-color:var(--gold)}
+.ci-intro{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem;margin:.5rem 0 .1rem 4.45rem;font-size:.86rem;color:var(--mute)}
+.ci-intro b{color:var(--ink);font-weight:600}
+.ci-note{margin:.55rem 0 .15rem 4.45rem;padding:.7rem .95rem;background:var(--chip);border-left:3px solid var(--gold);border-radius:0 12px 12px 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.92rem;line-height:1.55}
+.catfoot{margin:1rem 0}
+.empty{padding:.8rem;color:var(--mute)}
+@media (max-width:560px){
+  .ci-intro,.ci-note{margin-left:0}
+  .part{min-width:3.1rem}
+  .card h2.sectitle{font-size:1.4rem}
+  header.top h1{font-size:1.35rem}
+}
+/* editor dialog */
+dialog#cidlg{width:min(560px,calc(100vw - 1.5rem));max-height:calc(100dvh - 1.5rem);overflow:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--card-solid);color:var(--ink);padding:1.3rem 1.3rem 1.1rem;box-shadow:var(--shadow),var(--glow)}
+dialog#cidlg::backdrop{background:rgba(5,8,25,.62);backdrop-filter:blur(3px)}
+#cidlg h2{font-family:"Cormorant Garamond",Georgia,serif;font-size:1.7rem;font-weight:600;margin:0 0 .8rem}
+#cidlg label.f{display:grid;gap:.3rem;margin:.7rem 0;font-size:.85rem;color:var(--mute);font-weight:600}
+#cidlg label.f small{font-weight:400}
+.hint{font-size:.8rem;font-weight:400;min-height:1em}
+.hint.ok{color:var(--teal)}
+.hint.bad{color:var(--bad)}
+.grid2{display:grid;grid-template-columns:7rem 1fr;gap:.6rem}
+fieldset{border:0;padding:0;margin:.7rem 0;display:flex;flex-wrap:wrap;gap:.45rem;align-items:center}
+legend{font-size:.85rem;color:var(--mute);font-weight:600;padding:0;margin-bottom:.35rem;width:100%}
+.cb{display:inline-flex;align-items:center;gap:.4rem;padding:.42rem .85rem;border-radius:999px;border:1px solid var(--line);background:var(--chip);cursor:pointer;font-size:.9rem;font-weight:600;color:var(--ink)}
+.cb input{width:auto;min-height:0;margin:0;accent-color:#d6a446}
+.cb:has(input:checked){background:var(--pri-bg);color:var(--acc-ink);border-color:transparent}
+.cb svg.i{color:inherit}
 </style>
 </head>
 <body>
@@ -66,7 +173,7 @@ code{background:var(--chip);padding:.05rem .35rem;border-radius:5px}
 <div id="gate"></div>
 
 <div id="app" hidden>
-  <header class="top"><h1>Family Player</h1><a class="chip" href="catalog.html" style="text-decoration:none">📖 Catalog</a><button class="chip" id="profchip" data-act="switchprofile"></button></header>
+  <header class="top"><h1><span class="star">✦</span>Family Player</h1><button class="chip" id="profchip" data-act="switchprofile"></button></header>
   <main>
     <section id="player" hidden>
       <div id="stage">
@@ -96,6 +203,19 @@ code{background:var(--chip);padding:.05rem .35rem;border-radius:5px}
   </main>
 </div>
 <div id="toast" hidden></div>
+<dialog id="cidlg" aria-labelledby="cidlg-h">
+  <h2 id="cidlg-h">Edit meditation</h2>
+  <div class="grid2">
+    <label class="f">Part<input id="ci-part" placeholder="Part 24"></label>
+    <label class="f">Title<input id="ci-title" placeholder="Name of the meditation"></label>
+  </div>
+  <label class="f">Meditation <small>library number (e.g. 12) or a link</small><input id="ci-link" placeholder="12  or  https://…"><span class="hint" id="ci-link-h"></span></label>
+  <label class="f">Introduction video <small>optional, number or link</small><input id="ci-intro" placeholder="e.g. 13"><span class="hint" id="ci-intro-h"></span></label>
+  <fieldset id="ci-when"><legend>When</legend></fieldset>
+  <fieldset id="ci-where"><legend>Where</legend></fieldset>
+  <label class="f">Notes <small>everyone in the family sees these</small><textarea id="ci-note" rows="4" placeholder="Instructions, how often, what to prepare…"></textarea></label>
+  <div class="row" style="margin-top:.9rem"><button type="button" class="btn pri" data-act="cisave">Save</button><button type="button" class="btn" data-act="ciclose">Cancel</button><span class="sp"></span><button type="button" class="btn danger" data-act="cidelete" id="ci-del">Delete</button></div>
+</dialog>
 
 <script>
 /* ===== Configure this one line (see README) ===== */
@@ -303,6 +423,7 @@ function normalizeCfg(c){
     p.playlists = Array.isArray(p.playlists) ? p.playlists : [];
     p.schedule = p.schedule && typeof p.schedule === 'object' ? p.schedule : {};
   });
+  normalizeCatalog(c);
   return c;
 }
 async function readConfig(id){
@@ -601,22 +722,17 @@ function render(){
 function viewPlay(p){
   const [dk, dn] = DAYS[new Date().getDay()];
   const tp = p.playlists.find(x => x.id === p.schedule[dk]);
-  const keys = ['1','2','3',',','4','5','6','-','7','8','9','⌫','0'];
   return `
-  <div class="card"><h2>Today · ${dn}</h2>
-    ${tp ? `<div class="row"><span class="big" style="flex:1">${esc(tp.name)} <span class="mute">· ${tp.items.length} videos</span></span>
-      <button class="btn pri" data-act="playpl" data-id="${tp.id}">▶ Play today's list</button></div>`
-      : `<p class="mute">Nothing scheduled for ${dn}. Set it up under Playlists.</p>`}
-  </div>
-  <div class="card"><h2>Play by number</h2>
-    <div class="row"><input id="quick" inputmode="numeric" placeholder="e.g. 3, 7, 12 or 4-9" value="${esc(S.quick)}">
-      <button class="btn pri" data-act="quickplay">▶ Play</button></div>
-    <div class="pad">${keys.map(k => `<button class="btn" data-act="key" data-k="${k}">${k}</button>`).join('')}<button class="btn" data-act="key" data-k="clear" style="grid-column:span 3">Clear</button></div>
-  </div>
-  <div class="card"><h2>${esc(p.name)}'s playlists</h2>
+  ${tp ? `<div class="card today"><h2>Today · ${dn}</h2>
+    <div class="row"><span class="big serif" style="flex:1;font-size:1.5rem">${esc(tp.name)} <span class="mute" style="font-family:inherit;font-size:.9rem">· ${tp.items.length} items</span></span>
+      <button class="btn pri" data-act="playpl" data-id="${tp.id}">▶ Play today's list</button></div></div>` : ''}
+  <div class="card quickbar"><label for="quick">Play by number</label>
+    <input id="quick" inputmode="numeric" placeholder="e.g. 3, 7, 12 or 4-9" value="${esc(S.quick)}">
+    <button class="btn pri" data-act="quickplay">▶ Play</button></div>
+  ${viewCatalog()}
+  ${p.playlists.length ? `<div class="card"><h2>${esc(p.name)}'s playlists</h2>
     <ul class="list">${p.playlists.map(pl => `<li><span class="t">${esc(pl.name)} <span class="mute">· ${pl.items.length}</span></span>
-      <button class="btn sm" data-act="playpl" data-id="${pl.id}">▶ Play</button></li>`).join('') || '<li class="mute">No playlists yet.</li>'}</ul>
-  </div>`;
+      <button class="btn sm" data-act="playpl" data-id="${pl.id}">▶ Play</button></li>`).join('')}</ul></div>` : ''}`;
 }
 function libRows(){
   const f = S.filter.trim().toLowerCase();
@@ -698,6 +814,7 @@ function viewSettings(p){
 }
 function renderPlayer(){
   const it = curItem();
+  markNowPlaying();
   if (!it){ $('#player').hidden = true; return; }
   $('#now').innerHTML = `<span class="num">${it.num}</span> <b>${esc(it.title)}</b> <span class="mute">· ${S.qi + 1} of ${S.queue.length}${S.qLabel ? ' · ' + esc(S.qLabel) : ''}</span>`;
   $('#loopbtn').textContent = 'Loop: ' + (S.loop ? 'on' : 'off');
@@ -751,9 +868,286 @@ async function afterSignIn(){
   if (!curProfile()) return showGate('profile');
   showApp();
   runPendingPlay();
-  syncFolder(true);
+  syncFolder(true).then(ensureCatalog);
 }
-function pickProfile(id){ S.profileId = id; store.set('fp_profile_' + S.folderId, id); S.editing = null; showApp(); runPendingPlay(); if (!S.lastScan) syncFolder(true); }
+function pickProfile(id){ S.profileId = id; store.set('fp_profile_' + S.folderId, id); S.editing = null; showApp(); runPendingPlay(); (S.lastScan ? Promise.resolve() : syncFolder(true)).then(ensureCatalog); }
+
+/* ======================================================================
+   CATALOG — shared by the whole family, saved in player-config.json.
+   Links point at a library file by identity (type:id), so renumbering
+   a file never breaks the catalog.
+   ====================================================================== */
+const CATALOG_SEED = [
+  { title: 'Shared Field Master Class', tag: 'Renew 2 months', items: [
+    ['sf-1', 'Part 1', 'Shared Field Part 1'], ['sf-2', 'Part 2', 'Shared Field Part 2'], ['sf-3', 'Part 3', 'Shared Field Part 3'],
+    ['sf-4', 'Part 4', 'Shared Field Part 4'], ['sf-5', 'Part 5', 'Shared Field Part 5'], ['sf-6', 'Part 6', 'Shared Field Part 6'],
+    ['sf-7ab', '7A & 7B', 'Shared Field Part 7A & 7B'], ['sf-8a', '8A', 'Shared Field Part 8A'],
+    ['sf-dmdf', 'DMDF', 'Shared Field DMDF Manifestation'], ['sf-88', '88', '88 Portal Instant Energy Shift'],
+    ['sf-9', 'Part 9', 'Shared Field Part 9'], ['sf-10', 'Part 10', 'Shared Field Part 10'], ['sf-11', 'Part 11', 'Shared Field Part 11'] ] },
+  { title: 'Subliminal Meditations', tag: 'Renew 2 months', items: [
+    'Alignment with God', 'Releasing Old Energies', 'Sacred Union', 'High Frequency Activation', 'DM DF Alignment Frequency Activation',
+    'Complete Cleansing Package', 'Special Protection', 'Light Code Transmission', 'Sacred Codes', 'Merkabah Protection', 'Womb Healing',
+    'Violet Flame Protection', 'Sacred Intimacy', 'Protecting Energy Leaks, Raising Union Frequency & Secret Codes',
+    'Ultimate Wish Fulfilment & Protection from Mind Manipulation', 'Complete Protection',
+    'Mastery of Neutralized Energies, Heal Blockages, Sexual Traumas, Inner Child Traumas', 'Cleanse, Pluck & Timeline Collapse',
+    '8/8 Portal Highest Timeline Activation, Abundance & Nighttime Protection', 'Sophia Frequency', 'Fully Awakened Divine Masculine',
+    'Release Push Pull Dynamics', 'Magical Permanent Harmonious Reunion'
+  ].map((t, i) => [`sub-${i + 1}`, `Part ${i + 1}`, t]) }
+];
+const WHEN = [['morning', 'Morning'], ['evening', 'Evening']];
+const WHERE = [['home', 'At home'], ['away', 'Away']];
+const TAG_LABEL = Object.fromEntries([...WHEN, ...WHERE]);
+const svg = (d, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+const ICONS = {
+  morning: svg('<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/>'),
+  evening: svg('<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>'),
+  home: svg('<path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5h4v5"/>'),
+  away: svg('<path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/>'),
+  note: svg('<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>'),
+  edit: svg('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m14 6 4 4"/>'),
+  up: svg('<path d="m6 15 6-6 6 6"/>'),
+  down: svg('<path d="m6 9 6 6 6-6"/>'),
+  play: svg('<path d="M7.5 5.2v13.6L19 12z"/>', 'fill'),
+  ext: svg('<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>'),
+};
+
+const refOf = it => `${it.type}:${it.id}`;
+const itemByRef = (ref, cfg = S.cfg) => ref ? cfg.items.find(i => refOf(i) === ref) : null;
+function resolveLink(link, cfg = S.cfg){
+  if (!link) return null;
+  if (link.url){
+    let host = ''; try { host = new URL(link.url).hostname.replace(/^www\./, ''); } catch {}
+    return { kind: 'url', url: link.url, host };
+  }
+  const it = itemByRef(link.ref, cfg);
+  return it && !it.missing ? { kind: 'item', item: it } : { kind: 'missing', item: it };
+}
+const hostLabel = h => /(^|\.)google\.com$/.test(h) ? 'Drive' : /youtu\.?be/.test(h) ? 'YouTube' : (h || 'Link');
+function parseLinkInput(text, cfg = S.cfg){
+  const s = String(text ?? '').trim();
+  if (!s) return { link: null };
+  const n = s.match(/^#?\s*(\d+)$/);
+  if (n){
+    const it = cfg.items.find(i => i.num === +n[1]);
+    return it ? { link: { ref: refOf(it) }, item: it } : { error: `No file #${n[1]} in the library` };
+  }
+  if (/^https?:\/\//i.test(s)){
+    const yt = parseYouTubeId(s);
+    const lib = yt && cfg.items.find(i => i.type === 'youtube' && i.id === yt);
+    return lib ? { link: { ref: refOf(lib) }, item: lib } : { link: { url: s } };
+  }
+  return { error: 'Use a library number (like 12) or a link starting with https://' };
+}
+function linkInputValue(link){
+  const r = resolveLink(link);
+  if (!r) return '';
+  if (r.kind === 'url') return r.url;
+  return r.item ? String(r.item.num) : '';
+}
+
+/* Auto-link: match catalog titles to library file names, e.g.
+   "High Frequency Activation" ↔ "HighFrequencyActivationSubliminalMeditation.mp4".
+   Files whose name contains "intro" become the item's introduction. Only unique matches are used. */
+const normKey = s => String(s).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]/g, '');
+function containsKey(hay, key){
+  for (let i = hay.indexOf(key); i >= 0; i = hay.indexOf(key, i + 1)){
+    const after = hay[i + key.length];
+    if (!(/\d$/.test(key) && after && /\d/.test(after))) return true; // "part1" must not match "part12"
+  }
+  return false;
+}
+function autoLinkCatalog(cfg){
+  let linked = 0;
+  const lib = cfg.items.filter(i => !i.missing).map(i => ({ i, n: normKey(i.title) }));
+  for (const sec of cfg.catalog.sections){
+    const secWord = normKey(sec.title.split(/\s+/)[0] || '');
+    for (const ci of sec.items){
+      const keys = [normKey(ci.title)];
+      if (/\d/.test(ci.part)) keys.push(secWord + normKey(ci.part));
+      const find = intro => {
+        const hits = lib.filter(x => keys.some(k => k.length >= 6 && containsKey(x.n, k)) && x.n.includes('intro') === intro);
+        return hits.length === 1 ? hits[0].i : null;
+      };
+      if (!ci.link){ const h = find(false); if (h){ ci.link = { ref: refOf(h) }; linked++; } }
+      if (!ci.intro){ const h = find(true); if (h){ ci.intro = { ref: refOf(h) }; linked++; } }
+    }
+  }
+  return linked;
+}
+function newCI(part, title){ return { id: uid(), part, title, link: null, intro: null, when: [], where: [], note: '' }; }
+function seedCatalog(cfg, oldLinks){
+  cfg.catalog = { sections: CATALOG_SEED.map(s => ({ id: uid(), title: s.title, tag: s.tag, items: s.items.map(([key, part, title]) => {
+    const ci = newCI(part, title);
+    if (oldLinks?.[key] != null){ const r = parseLinkInput(String(oldLinks[key]), cfg); if (r.link) ci.link = r.link; }
+    return ci;
+  }) })) };
+  autoLinkCatalog(cfg);
+}
+/* One-time import of links typed into the old stand-alone catalog.html, if it is still uploaded. */
+async function readOldCatalogLinks(){
+  try {
+    const r = await fetch('catalog.html', { cache: 'no-store' }); if (!r.ok) return null;
+    const m = (await r.text()).match(/const LINKS = \{([\s\S]*?)\};/); if (!m) return null;
+    const out = {};
+    for (const x of m[1].matchAll(/'((?:sf|sub)-[\w]+)'\s*:\s*(?:'([^']*)'|(\d+))/g)){ const v = x[3] ?? x[2]; if (v) out[x[1]] = v; }
+    return out;
+  } catch { return null; }
+}
+async function ensureCatalog(){
+  if (S.cfg.catalog) return;
+  const old = await readOldCatalogLinks();
+  await saveCfg(cfg => { if (!cfg.catalog) seedCatalog(cfg, old); });
+}
+function normalizeCatalog(c){
+  if (!c.catalog) return;
+  if (!Array.isArray(c.catalog.sections)){ delete c.catalog; return; }
+  c.catalog.sections.forEach(sec => {
+    sec.id ||= uid(); sec.title ||= 'Untitled'; sec.items = Array.isArray(sec.items) ? sec.items : [];
+    sec.items.forEach(ci => {
+      ci.id ||= uid(); ci.part ??= ''; ci.title ??= ''; ci.link ??= null; ci.intro ??= null; ci.note ??= '';
+      ci.when = Array.isArray(ci.when) ? ci.when : []; ci.where = Array.isArray(ci.where) ? ci.where : [];
+    });
+  });
+}
+
+/* ---------- catalog: filters & rendering ---------- */
+S.catF = new Set(); S.catQ = ''; S.catEdit = false; S.openNotes = new Set();
+S.showNotes = store.get('fp_shownotes') === '1';
+function matchCI(sec, ci){
+  for (const k of S.catF) if (!ci.when.includes(k) && !ci.where.includes(k)) return false;
+  const words = S.catQ.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const hay = `${ci.part} ${ci.title} ${ci.note} ${sec.title}`.toLowerCase();
+  return words.every(w => hay.includes(w));
+}
+function viewCatalog(){
+  const chips = [...WHEN, ...WHERE].map(([k, l]) =>
+    `<button class="fchip ${S.catF.has(k) ? 'on' : ''}" data-act="catf" data-k="${k}" aria-pressed="${S.catF.has(k)}">${ICONS[k]}<span>${l}</span></button>`).join('');
+  return `
+  <div class="cattools">
+    <input id="catq" type="search" placeholder="Search meditations and notes…" value="${esc(S.catQ)}" aria-label="Search the catalog">
+    <div class="fchips">${chips}<span class="sep"></span>
+      <button class="fchip ${S.showNotes ? 'on' : ''}" data-act="catnotes" aria-pressed="${S.showNotes}">${ICONS.note}<span>${S.showNotes ? 'Hide notes' : 'Show notes'}</span></button>
+      <button class="fchip ${S.catEdit ? 'on' : ''}" data-act="catedit" aria-pressed="${S.catEdit}">${ICONS.edit}<span>${S.catEdit ? 'Done editing' : 'Edit catalog'}</span></button>
+    </div>
+  </div>
+  <div id="catbody">${catBody()}</div>`;
+}
+function catBody(){
+  const cat = S.cfg.catalog;
+  if (!cat) return `<div class="card"><p class="mute">Setting up the catalog…</p></div>`;
+  const filtering = S.catF.size > 0 || S.catQ.trim() !== '';
+  const curRef = curItem() ? refOf(curItem()) : '';
+  const secs = cat.sections.map((sec, si) => {
+    const items = sec.items.filter(ci => matchCI(sec, ci));
+    if (filtering && !items.length && !S.catEdit) return '';
+    const nums = sec.items.map(ci => resolveLink(ci.link)).filter(r => r?.kind === 'item').map(r => r.item.num);
+    const tools = S.catEdit
+      ? `<button class="btn sm" data-act="secadd" data-sec="${sec.id}">＋ Meditation</button>
+         <button class="iconbtn" data-act="secedit" data-sec="${sec.id}" title="Rename section">${ICONS.edit}</button>
+         <button class="iconbtn" data-act="secmove" data-sec="${sec.id}" data-dir="-1" title="Move up" ${si === 0 ? 'disabled' : ''}>${ICONS.up}</button>
+         <button class="iconbtn" data-act="secmove" data-sec="${sec.id}" data-dir="1" title="Move down" ${si === cat.sections.length - 1 ? 'disabled' : ''}>${ICONS.down}</button>
+         <button class="btn sm danger" data-act="secdel" data-sec="${sec.id}">Delete</button>`
+      : nums.length > 1 ? `<button class="btn pri sm" data-act="secplay" data-sec="${sec.id}">${ICONS.play} Play all ${nums.length}</button>` : '';
+    return `<section class="card catsec">
+      <header class="sechead"><div><h2 class="sectitle">${esc(sec.title)}</h2>${sec.tag ? `<span class="sectag">${esc(sec.tag)}</span>` : ''}</div>
+        <div class="row">${tools}</div></header>
+      <ol class="cilist">${items.map((ci, ii) => ciRow(sec, ci, ii, curRef)).join('') || `<li class="empty">${filtering ? 'No meditations match.' : 'Empty section.'}</li>`}</ol>
+    </section>`;
+  }).join('');
+  const none = filtering && !secs.trim()
+    ? `<div class="card"><p class="mute">Nothing matches.${S.catF.size ? ' Meditations without time/place icons are hidden while a filter is on — add them with Edit catalog.' : ''}</p></div>` : '';
+  const foot = S.catEdit ? `<div class="row catfoot"><button class="btn" data-act="secnew">＋ Add section</button><button class="btn" data-act="catautolink">✦ Auto-link from library</button></div>` : '';
+  return secs + none + foot;
+}
+function ciRow(sec, ci, idx, curRef){
+  const r = resolveLink(ci.link), ri = resolveLink(ci.intro);
+  const tags = [...ci.when, ...ci.where].filter(k => ICONS[k]).map(k => `<span class="tagi" role="img" title="${TAG_LABEL[k]}" aria-label="${TAG_LABEL[k]}">${ICONS[k]}</span>`).join('');
+  const status = !r ? 'No link yet'
+    : r.kind === 'item' ? `#${r.item.num}${r.item.media === 'audio' ? ' · audio' : r.item.type === 'youtube' ? ' · YouTube' : ''}`
+    : r.kind === 'url' ? `${hostLabel(r.host)} link` : '<span class="warn">File removed from Drive</span>';
+  const noteOpen = S.showNotes || S.openNotes.has(ci.id);
+  const noteBtn = ci.note ? `<button class="iconbtn ${noteOpen ? 'on' : ''}" data-act="cinote" title="${noteOpen ? 'Hide' : 'Show'} note" aria-expanded="${noteOpen}">${ICONS.note}</button>` : '';
+  const action = S.catEdit
+    ? `<button class="iconbtn" data-act="ciedit" title="Edit">${ICONS.edit}</button>
+       <button class="iconbtn" data-act="cimove" data-dir="-1" title="Move up" ${idx === 0 ? 'disabled' : ''}>${ICONS.up}</button>
+       <button class="iconbtn" data-act="cimove" data-dir="1" title="Move down" ${idx === sec.items.length - 1 ? 'disabled' : ''}>${ICONS.down}</button>`
+    : r && r.kind !== 'missing'
+      ? `<button class="playbtn" data-act="ciplay" aria-label="${r.kind === 'url' ? 'Open' : 'Play'} ${esc(ci.title)}" title="${r.kind === 'url' ? 'Opens in a new tab' : 'Play'}">${r.kind === 'url' ? ICONS.ext : ICONS.play}</button>`
+      : `<span class="playbtn off" aria-hidden="true">${ICONS.play}</span>`;
+  let intro = '';
+  if (ci.intro){
+    const both = r?.kind === 'item' && ri?.kind === 'item';
+    const ist = !ri ? '' : ri.kind === 'item' ? `#${ri.item.num}` : ri.kind === 'url' ? `${hostLabel(ri.host)} link` : '<span class="warn">file removed</span>';
+    intro = `<div class="ci-intro">↳ <b>Introduction</b> <span>${ist}</span>
+      ${ri && ri.kind !== 'missing' && !S.catEdit ? `<button class="btn sm" data-act="ciintro">${ri.kind === 'url' ? 'Open intro ↗' : '▶ Intro'}</button>` : ''}
+      ${both && !S.catEdit ? `<button class="btn sm" data-act="ciboth">▶ Intro, then meditation</button>` : ''}</div>`;
+  }
+  const isNow = r?.kind === 'item' && refOf(r.item) === curRef;
+  return `<li class="ci ${!r ? 'unlinked' : ''} ${isNow ? 'now' : ''}" data-sec="${sec.id}" data-ci="${ci.id}" data-ref="${r?.kind === 'item' ? esc(refOf(r.item)) : ''}">
+    <div class="ci-main"><span class="part">${esc(ci.part || '•')}</span>
+      <div class="ci-text"><div class="ci-title">${esc(ci.title)}</div><div class="ci-meta">${tags}<span>${status}</span></div></div>
+      ${noteBtn}${action}</div>${intro}
+    ${ci.note && noteOpen ? `<div class="ci-note">${esc(ci.note)}</div>` : ''}</li>`;
+}
+function rerenderCatalog(){ const b = $('#catbody'); if (b) b.innerHTML = catBody(); }
+function markNowPlaying(){
+  const ref = curItem() ? refOf(curItem()) : '';
+  document.querySelectorAll('li.ci').forEach(li => li.classList.toggle('now', !!ref && li.dataset.ref === ref));
+}
+
+/* ---------- catalog: actions ---------- */
+function findCI(secId, ciId, cfg = S.cfg){
+  const sec = cfg.catalog?.sections.find(s => s.id === secId);
+  return { sec, ci: sec?.items.find(i => i.id === ciId) };
+}
+function openLink(link, label){
+  const r = resolveLink(link);
+  if (!r) return toast('No link yet — use Edit catalog to add one');
+  if (r.kind === 'missing') return toast('That file is no longer in the Drive folder');
+  if (r.kind === 'url') return void window.open(r.url, '_blank', 'noopener');
+  playQueue([r.item.num], label);
+}
+function fillChecks(fs, opts, chosen){
+  fs.innerHTML = fs.querySelector('legend').outerHTML + opts.map(([k, l]) =>
+    `<label class="cb"><input type="checkbox" value="${k}" ${chosen.includes(k) ? 'checked' : ''}>${ICONS[k]}<span>${l}</span></label>`).join('');
+}
+function linkHint(inputId){
+  const v = $('#' + inputId).value, h = $('#' + inputId + '-h'), r = parseLinkInput(v);
+  h.className = 'hint' + (r.error ? ' bad' : r.link ? ' ok' : '');
+  h.textContent = r.error || (r.item ? `#${r.item.num} · ${r.item.title}` : r.link?.url ? 'Opens in a new tab' : '');
+}
+function openEditor(secId, ciId){
+  const { ci } = ciId ? findCI(secId, ciId) : { ci: newCI('', '') };
+  S.dlg = { secId, ciId };
+  $('#cidlg-h').textContent = ciId ? 'Edit meditation' : 'Add meditation';
+  $('#ci-part').value = ci.part; $('#ci-title').value = ci.title;
+  $('#ci-link').value = linkInputValue(ci.link); $('#ci-intro').value = linkInputValue(ci.intro);
+  $('#ci-note').value = ci.note;
+  fillChecks($('#ci-when'), WHEN, ci.when); fillChecks($('#ci-where'), WHERE, ci.where);
+  $('#ci-del').hidden = !ciId;
+  linkHint('ci-link'); linkHint('ci-intro');
+  $('#cidlg').showModal();
+  if (!ciId) $('#ci-title').focus();
+}
+async function saveEditor(){
+  const L = parseLinkInput($('#ci-link').value), I = parseLinkInput($('#ci-intro').value);
+  if (L.error) return toast(L.error);
+  if (I.error) return toast('Introduction: ' + I.error);
+  const title = $('#ci-title').value.trim();
+  if (!title) return toast('Give the meditation a title');
+  const checked = id => [...document.querySelectorAll(`#${id} input:checked`)].map(x => x.value);
+  const data = { part: $('#ci-part').value.trim(), title, link: L.link, intro: I.link,
+    when: checked('ci-when'), where: checked('ci-where'), note: $('#ci-note').value.replace(/\s+$/, '') };
+  const { secId, ciId } = S.dlg;
+  const ok = await saveCfg(cfg => {
+    const { sec, ci } = findCI(secId, ciId, cfg);
+    if (!sec) throw new Error('that section was removed by someone else');
+    if (ciId){ if (!ci) throw new Error('that meditation was removed by someone else'); Object.assign(ci, data); }
+    else sec.items.push({ id: uid(), ...data });
+  });
+  if (ok){ $('#cidlg').close(); toast('Saved'); }
+}
 
 /* ---------- events ---------- */
 document.addEventListener('click', async e => {
@@ -790,10 +1184,67 @@ document.addEventListener('click', async e => {
       if (await saveCfg(cfg => { cfg.profiles = cfg.profiles.filter(x => x.id !== S.profileId); })){ S.profileId = null; showGate('profile'); }
       break;
     case 'tab': S.tab = b.dataset.tab; S.editing = null; render(); break;
-    case 'key': {
-      const k = b.dataset.k;
-      S.quick = k === 'clear' ? '' : k === '⌫' ? S.quick.slice(0, -1) : S.quick + (k === ',' ? ', ' : k);
-      $('#quick').value = S.quick; break;
+    /* catalog */
+    case 'catf': { const k = b.dataset.k; S.catF.has(k) ? S.catF.delete(k) : S.catF.add(k); render(); break; }
+    case 'catnotes': S.showNotes = !S.showNotes; store.set('fp_shownotes', S.showNotes ? '1' : null); S.openNotes.clear(); render(); break;
+    case 'catedit': S.catEdit = !S.catEdit; render(); break;
+    case 'cinote': case 'ciplay': case 'ciintro': case 'ciboth': case 'ciedit': case 'cimove': {
+      const li = b.closest('li.ci'), { sec, ci } = findCI(li.dataset.sec, li.dataset.ci);
+      if (!ci) return;
+      if (a === 'cinote'){
+        if (S.showNotes){ S.showNotes = false; store.set('fp_shownotes', null); sec.items.forEach(x => x.note && x.id !== ci.id && S.openNotes.add(x.id)); }
+        else S.openNotes.has(ci.id) ? S.openNotes.delete(ci.id) : S.openNotes.add(ci.id);
+        render();
+      } else if (a === 'ciplay') openLink(ci.link, ci.title);
+      else if (a === 'ciintro') openLink(ci.intro, `${ci.title} — introduction`);
+      else if (a === 'ciboth'){
+        const r = resolveLink(ci.link), ri = resolveLink(ci.intro);
+        if (r?.kind === 'item' && ri?.kind === 'item') playQueue([ri.item.num, r.item.num], ci.title);
+      } else if (a === 'ciedit') openEditor(sec.id, ci.id);
+      else if (a === 'cimove'){
+        const dir = Number(b.dataset.dir), secId = sec.id, ciId = ci.id;
+        saveCfg(cfg => { const s = cfg.catalog.sections.find(x => x.id === secId); const i0 = s?.items.findIndex(x => x.id === ciId); const j = i0 + dir;
+          if (s && i0 >= 0 && j >= 0 && j < s.items.length) [s.items[i0], s.items[j]] = [s.items[j], s.items[i0]]; });
+      }
+      break;
+    }
+    case 'cisave': saveEditor(); break;
+    case 'ciclose': $('#cidlg').close(); break;
+    case 'cidelete': {
+      const { secId, ciId } = S.dlg, { ci } = findCI(secId, ciId);
+      if (!confirm(`Delete "${ci?.title}" from the catalog? (The file stays in your library.)`)) return;
+      if (await saveCfg(cfg => { const s = cfg.catalog.sections.find(x => x.id === secId); if (s) s.items = s.items.filter(x => x.id !== ciId); })){ $('#cidlg').close(); toast('Deleted'); }
+      break;
+    }
+    case 'secplay': {
+      const sec = S.cfg.catalog.sections.find(s => s.id === b.dataset.sec);
+      const nums = sec.items.map(ci => resolveLink(ci.link)).filter(r => r?.kind === 'item').map(r => r.item.num);
+      playQueue(nums, sec.title); break;
+    }
+    case 'secadd': openEditor(b.dataset.sec, null); break;
+    case 'secnew': {
+      const title = prompt('Name of the new section'); if (!title?.trim()) return;
+      saveCfg(cfg => { cfg.catalog.sections.push({ id: uid(), title: title.trim(), tag: '', items: [] }); }); break;
+    }
+    case 'secedit': {
+      const sec = S.cfg.catalog.sections.find(s => s.id === b.dataset.sec);
+      const title = prompt('Section name', sec.title); if (title == null || !title.trim()) return;
+      const tag = prompt('Small label under the name (leave empty for none)', sec.tag || ''); if (tag == null) return;
+      saveCfg(cfg => { const s = cfg.catalog.sections.find(x => x.id === sec.id); if (s){ s.title = title.trim(); s.tag = tag.trim(); } }); break;
+    }
+    case 'secmove': {
+      const id = b.dataset.sec, dir = Number(b.dataset.dir);
+      saveCfg(cfg => { const L = cfg.catalog.sections, i0 = L.findIndex(x => x.id === id), j = i0 + dir; if (i0 >= 0 && j >= 0 && j < L.length) [L[i0], L[j]] = [L[j], L[i0]]; }); break;
+    }
+    case 'secdel': {
+      const sec = S.cfg.catalog.sections.find(s => s.id === b.dataset.sec);
+      if (!confirm(`Delete the section "${sec.title}" and its ${sec.items.length} catalog entries? (Files stay in your library.)`)) return;
+      saveCfg(cfg => { cfg.catalog.sections = cfg.catalog.sections.filter(x => x.id !== sec.id); }); break;
+    }
+    case 'catautolink': {
+      const n = await saveCfg(cfg => autoLinkCatalog(cfg));
+      if (n !== null) toast(n ? `Linked ${n} item${n === 1 ? '' : 's'} by matching file names` : 'No new unique matches found — link the rest by number');
+      break;
     }
     case 'quickplay': {
       S.quick = $('#quick').value;
@@ -922,10 +1373,13 @@ document.addEventListener('change', e => {
 });
 document.addEventListener('input', e => {
   if (e.target.id === 'filter'){ S.filter = e.target.value; $('#librows').innerHTML = libRows(); }
+  else if (e.target.id === 'catq'){ S.catQ = e.target.value; rerenderCatalog(); }
+  else if (e.target.id === 'ci-link' || e.target.id === 'ci-intro') linkHint(e.target.id);
   else if (e.target.id === 'quick') S.quick = e.target.value;
 });
 document.addEventListener('keydown', e => {
   if (e.key !== 'Enter') return;
+  if (['ci-part', 'ci-title', 'ci-link', 'ci-intro'].includes(e.target.id)){ e.preventDefault(); return saveEditor(); }
   const map = { quick: 'quickplay', yturl: 'addyt', folderin: 'setfolder', newprof: 'createprofile', 'ed-add': 'ed-add' };
   const act = map[e.target.id]; if (act) document.querySelector(`[data-act="${act}"]`)?.click();
 });
