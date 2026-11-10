@@ -150,6 +150,17 @@ code{background:var(--chip);padding:.05rem .35rem;border-radius:6px}
   .card h2.sectitle{font-size:1.4rem}
   header.top h1{font-size:1.35rem}
 }
+/* select mode */
+.selbtn{flex:0 0 auto;width:2.8rem;height:2.8rem;border-radius:50%;display:grid;place-items:center;border:2px solid var(--gold);background:transparent;color:var(--acc-ink);font:inherit;font-weight:800;font-size:1rem;cursor:pointer;transition:all .15s}
+.selbtn.on{background:var(--pri-bg);border-color:transparent;box-shadow:var(--glow)}
+.selbtn:disabled{border-color:var(--line);opacity:.4;cursor:default}
+.ci-main[data-act=cisel]{cursor:pointer}
+.ci.sel{background:var(--gold-soft)}
+#selbar{position:fixed;left:50%;bottom:max(1rem,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:20;width:min(760px,calc(100vw - 1.5rem));display:flex;align-items:center;flex-wrap:wrap;gap:.5rem .6rem;padding:.7rem .9rem;background:var(--card-solid);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow),var(--glow)}
+#selbar .count{font-weight:800;color:var(--gold);margin-right:.2rem}
+#selbar label.cb{padding:.32rem .7rem;font-size:.85rem}
+body.has-sel main{padding-bottom:9rem}
+body.has-sel #toast{bottom:8.5rem}
 /* editor dialog */
 dialog#cidlg{width:min(560px,calc(100vw - 1.5rem));max-height:calc(100dvh - 1.5rem);overflow:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--card-solid);color:var(--ink);padding:1.3rem 1.3rem 1.1rem;box-shadow:var(--shadow),var(--glow)}
 dialog#cidlg::backdrop{background:rgba(5,8,25,.62);backdrop-filter:blur(3px)}
@@ -730,6 +741,7 @@ function render(){
   $('#profchip').textContent = p ? '👤 ' + p.name : 'Profile';
   document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
   const v = $('#view');
+  if (S.tab !== 'play') document.body.classList.remove('has-sel');
   if (S.tab === 'play') v.innerHTML = viewPlay(p);
   else if (S.tab === 'library') v.innerHTML = viewLibrary();
   else if (S.tab === 'playlists') v.innerHTML = S.editing ? viewEditor() : viewPlaylists(p);
@@ -927,6 +939,7 @@ const ICONS = {
   edit: svg('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m14 6 4 4"/>'),
   up: svg('<path d="m6 15 6-6 6 6"/>'),
   down: svg('<path d="m6 9 6 6 6-6"/>'),
+  check: svg('<rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="m8 12.2 2.8 2.8L16.5 9"/>'),
   play: svg('<path d="M7.5 5.2v13.6L19 12z"/>', 'fill'),
   ext: svg('<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>'),
 };
@@ -1052,6 +1065,7 @@ function normalizeCatalog(c){
 
 /* ---------- catalog: filters & rendering ---------- */
 S.catF = new Set(); S.catQ = ''; S.catEdit = false; S.openNotes = new Set();
+S.catSel = false; S.sel = []; S.selIntros = false;   // select mode: S.sel holds {sec, ci} ids in tap order
 S.showNotes = store.get('fp_shownotes') === '1';
 function matchCI(sec, ci){
   for (const k of S.catF) if (!ci.when.includes(k) && !ci.where.includes(k) && !ci.pose.includes(k)) return false;
@@ -1068,10 +1082,12 @@ function viewCatalog(){
     <input id="catq" type="search" placeholder="Search meditations and notes…" value="${esc(S.catQ)}" aria-label="Search the catalog">
     <div class="fchips">${chips}<span class="sep"></span>
       <button class="fchip ${S.showNotes ? 'on' : ''}" data-act="catnotes" aria-pressed="${S.showNotes}">${ICONS.note}<span>${S.showNotes ? 'Hide notes' : 'Show notes'}</span></button>
+      <button class="fchip ${S.catSel ? 'on' : ''}" data-act="catsel" aria-pressed="${S.catSel}">${ICONS.check}<span>${S.catSel ? 'Done selecting' : 'Select'}</span></button>
       <button class="fchip ${S.catEdit ? 'on' : ''}" data-act="catedit" aria-pressed="${S.catEdit}">${ICONS.edit}<span>${S.catEdit ? 'Done editing' : 'Edit catalog'}</span></button>
     </div>
   </div>
-  <div id="catbody">${catBody()}</div>`;
+  <div id="catbody">${catBody()}</div>
+  <div id="selbarhost">${selBar()}</div>`;
 }
 function catBody(){
   const cat = S.cfg.catalog;
@@ -1106,7 +1122,11 @@ function ciRow(sec, ci, idx, curRef){
   const status = r ? linkStatus(r) : 'No link yet';
   const noteOpen = S.showNotes || S.openNotes.has(ci.id);
   const noteBtn = ci.note ? `<button class="iconbtn ${noteOpen ? 'on' : ''}" data-act="cinote" title="${noteOpen ? 'Hide' : 'Show'} note" aria-expanded="${noteOpen}">${ICONS.note}</button>` : '';
-  const action = S.catEdit
+  const selIdx = S.sel.findIndex(x => x.ci === ci.id);
+  const selectable = r?.kind === 'item';
+  const action = S.catSel
+    ? `<button class="selbtn ${selIdx >= 0 ? 'on' : ''}" data-act="cisel" aria-pressed="${selIdx >= 0}" aria-label="Select ${esc(ci.title)}" ${selectable ? '' : 'disabled title="Can\'t be added: no playable link"'}>${selIdx >= 0 ? selIdx + 1 : ''}</button>`
+    : S.catEdit
     ? `<button class="iconbtn" data-act="ciedit" title="Edit">${ICONS.edit}</button>
        <button class="iconbtn" data-act="cimove" data-dir="-1" title="Move up" ${idx === 0 ? 'disabled' : ''}>${ICONS.up}</button>
        <button class="iconbtn" data-act="cimove" data-dir="1" title="Move down" ${idx === sec.items.length - 1 ? 'disabled' : ''}>${ICONS.down}</button>`
@@ -1118,17 +1138,41 @@ function ciRow(sec, ci, idx, curRef){
     const both = r?.kind === 'item' && ri?.kind === 'item';
     const ist = linkStatus(ri);
     intro = `<div class="ci-intro">↳ <b>Introduction</b> <span>${ist}</span>
-      ${ri && ri.kind !== 'missing' && !S.catEdit ? `<button class="btn sm" data-act="ciintro">${ri.kind === 'url' ? 'Open intro ↗' : '▶ Intro'}</button>` : ''}
-      ${both && !S.catEdit ? `<button class="btn sm" data-act="ciboth">▶ Intro, then meditation</button>` : ''}</div>`;
+      ${ri && ri.kind !== 'missing' && !S.catEdit && !S.catSel ? `<button class="btn sm" data-act="ciintro">${ri.kind === 'url' ? 'Open intro ↗' : '▶ Intro'}</button>` : ''}
+      ${both && !S.catEdit && !S.catSel ? `<button class="btn sm" data-act="ciboth">▶ Intro, then meditation</button>` : ''}</div>`;
   }
   const isNow = r?.kind === 'item' && refOf(r.item) === curRef;
-  return `<li class="ci ${!r ? 'unlinked' : ''} ${isNow ? 'now' : ''}" data-sec="${sec.id}" data-ci="${ci.id}" data-ref="${r?.kind === 'item' ? esc(refOf(r.item)) : ''}">
-    <div class="ci-main"><span class="part">${esc(ci.part || '•')}</span>
+  return `<li class="ci ${!r ? 'unlinked' : ''} ${isNow ? 'now' : ''} ${selIdx >= 0 ? 'sel' : ''}" data-sec="${sec.id}" data-ci="${ci.id}" data-ref="${r?.kind === 'item' ? esc(refOf(r.item)) : ''}">
+    <div class="ci-main" ${S.catSel && selectable ? 'data-act="cisel"' : ''}><span class="part">${esc(ci.part || '•')}</span>
       <div class="ci-text"><div class="ci-title">${esc(ci.title)}</div><div class="ci-meta">${tags}<span>${status}</span></div></div>
       ${noteBtn}${action}</div>${intro}
     ${ci.note && noteOpen ? `<div class="ci-note">${esc(ci.note)}</div>` : ''}</li>`;
 }
-function rerenderCatalog(){ const b = $('#catbody'); if (b) b.innerHTML = catBody(); }
+function rerenderCatalog(){ const b = $('#catbody'); if (b) b.innerHTML = catBody(); updateSelBar(); }
+function selBar(){
+  document.body.classList.toggle('has-sel', S.catSel && S.sel.length > 0);
+  if (!S.catSel || !S.sel.length) return '';
+  const n = S.sel.length;
+  return `<div id="selbar" role="region" aria-label="Selection">
+    <span class="count">${n} selected</span>
+    <label class="cb"><input type="checkbox" data-act="selintros" ${S.selIntros ? 'checked' : ''}>Include intros</label>
+    <span class="sp"></span>
+    <button class="btn pri" data-act="selplay">${ICONS.play} Play ${n}</button>
+    <button class="btn" data-act="selsave">Save as playlist</button>
+    <button class="btn" data-act="selclear">Clear</button></div>`;
+}
+function updateSelBar(){ const h = $('#selbarhost'); if (h) h.innerHTML = selBar(); }
+/* Selected catalog entries → queue items, in tap order (intro first when "Include intros" is on). */
+function selectionItems(){
+  const out = [];
+  for (const { sec, ci: id } of S.sel){
+    const { ci } = findCI(sec, id); if (!ci) continue;
+    const r = resolveLink(ci.link); if (r?.kind !== 'item') continue;
+    if (S.selIntros){ const ri = resolveLink(ci.intro); if (ri?.kind === 'item') out.push(asQueued(ri.item, `${ci.title} — introduction`)); }
+    out.push(asQueued(r.item, ci.title));
+  }
+  return out;
+}
 function markNowPlaying(){
   const ref = curItem() ? refOf(curItem()) : '';
   document.querySelectorAll('li.ci').forEach(li => li.classList.toggle('now', !!ref && li.dataset.ref === ref));
@@ -1234,7 +1278,31 @@ document.addEventListener('click', async e => {
     /* catalog */
     case 'catf': { const k = b.dataset.k; S.catF.has(k) ? S.catF.delete(k) : S.catF.add(k); render(); break; }
     case 'catnotes': S.showNotes = !S.showNotes; store.set('fp_shownotes', S.showNotes ? '1' : null); S.openNotes.clear(); render(); break;
-    case 'catedit': S.catEdit = !S.catEdit; render(); break;
+    case 'catedit': S.catEdit = !S.catEdit; if (S.catEdit){ S.catSel = false; S.sel = []; } render(); break;
+    case 'catsel': S.catSel = !S.catSel; S.sel = []; if (S.catSel) S.catEdit = false; render(); break;
+    case 'cisel': {
+      const li = b.closest('li.ci'), key = { sec: li.dataset.sec, ci: li.dataset.ci };
+      const i0 = S.sel.findIndex(x => x.ci === key.ci);
+      if (i0 >= 0) S.sel.splice(i0, 1); else S.sel.push(key);
+      rerenderCatalog(); break;
+    }
+    case 'selintros': S.selIntros = b.checked; break;
+    case 'selclear': S.sel = []; rerenderCatalog(); break;
+    case 'selplay': {
+      const items = selectionItems();
+      if (!items.length) return toast('Nothing playable selected');
+      startQueue(items, 'Selection'); break;
+    }
+    case 'selsave': {
+      const items = selectionItems();
+      const nums = items.filter(it => !it.virtual).map(it => it.num);
+      const skipped = items.length - nums.length;
+      if (!nums.length) return toast('These are pasted links, not library files — add them to the Library to save them in a playlist', 5000);
+      const name = prompt(`Name for this playlist (${nums.length} item${nums.length === 1 ? '' : 's'})`); if (!name?.trim()) return;
+      const ok = await saveCfg(cfg => { const pr = curProfile(cfg); if (pr) pr.playlists.push({ id: uid(), name: name.trim(), items: nums }); });
+      if (ok) toast(`Saved "${name.trim()}" to ${p.name}'s playlists${skipped ? ` — ${skipped} pasted link${skipped === 1 ? '' : 's'} left out (not in the Library)` : ''}`, 5000);
+      break;
+    }
     case 'cinote': case 'ciplay': case 'ciintro': case 'ciboth': case 'ciedit': case 'cimove': {
       const li = b.closest('li.ci'), { sec, ci } = findCI(li.dataset.sec, li.dataset.ci);
       if (!ci) return;
