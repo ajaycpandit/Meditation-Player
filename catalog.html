@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Twin Soul Meditations</title>
+<meta name="theme-color" content="#0f4c5c">
+<style>
+:root{--bg:#eef5f6;--card:#fff;--ink:#12262b;--mute:#58707a;--line:#cfe0e3;--acc:#0f6f7f;--acc2:#0b4f5c;--acc-ink:#fff;--soft:#e2f0f2;--r:12px}
+@media (prefers-color-scheme:dark){:root{--bg:#0c1719;--card:#132326;--ink:#e3f1f3;--mute:#93abb1;--line:#24393d;--acc:#4fb3c2;--acc2:#7fd0dc;--acc-ink:#062026;--soft:#1a3034}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.4}
+header{background:linear-gradient(135deg,#0b4f5c,#127a8a);color:#fff;padding:1.4rem 1rem 1.1rem;text-align:center}
+header h1{margin:0;font-size:clamp(1.25rem,3.5vw,1.9rem);letter-spacing:.01em}
+header p{margin:.35rem 0 0;opacity:.85;font-size:.95rem}
+header a.back{color:#fff;opacity:.85;font-size:.9rem}
+main{max-width:1100px;margin:0 auto;padding:1rem 1rem 3rem}
+.tools{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem}
+.tools input{flex:1;min-width:12rem;font:inherit;padding:.65rem .8rem;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.cols{display:grid;grid-template-columns:1fr 1.6fr;gap:1rem;align-items:start}
+@media (max-width:760px){.cols{grid-template-columns:1fr}}
+section{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+section>h2{margin:0;padding:.8rem 1rem;font-size:1.05rem;background:var(--soft);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+section>h2 .tag{font-size:.72rem;font-weight:600;color:var(--mute);border:1px solid var(--line);border-radius:999px;padding:.1rem .5rem;background:var(--card)}
+section>h2 .sp{flex:1}
+ol{list-style:none;margin:0;padding:0}
+li a,li .nolink{display:flex;align-items:center;gap:.7rem;padding:.7rem 1rem;border-top:1px solid var(--line);color:inherit;text-decoration:none;min-height:3.2rem}
+li:first-child a,li:first-child .nolink{border-top:0}
+li a:hover,li a:focus-visible{background:var(--soft);outline:none}
+.part{flex:0 0 auto;min-width:3.4rem;text-align:center;font-weight:700;font-size:.85rem;color:var(--acc2);background:var(--soft);border-radius:8px;padding:.3rem .4rem;font-variant-numeric:tabular-nums}
+.name{flex:1;min-width:0}
+.name b{font-weight:600}
+.go{flex:0 0 auto;font-size:.8rem;font-weight:600;padding:.3rem .65rem;border-radius:999px;white-space:nowrap}
+.go.play{background:var(--acc);color:var(--acc-ink)}
+.go.url{border:1px solid var(--acc);color:var(--acc2)}
+.nolink{opacity:.55}
+.nolink .go{border:1px dashed var(--line);color:var(--mute)}
+.btn{font:inherit;font-size:.82rem;font-weight:600;padding:.35rem .75rem;border-radius:999px;border:0;background:var(--acc);color:var(--acc-ink);text-decoration:none;cursor:pointer}
+.hide{display:none!important}
+.empty{padding:1rem;color:var(--mute)}
+footer{max-width:1100px;margin:0 auto;padding:0 1rem 2rem;color:var(--mute);font-size:.85rem}
+</style>
+</head>
+<body>
+<header>
+  <h1>My Soul Purpose My Soul Mission · Twin Soul Meditations</h1>
+  <p>Original Systematic Inner Work</p>
+  <p><a class="back" href="index.html">← Back to Family Player</a></p>
+</header>
+<main>
+  <div class="tools"><input id="q" type="search" placeholder="Search, e.g. protection, part 12, sophia" aria-label="Search meditations"></div>
+  <div class="cols">
+    <section id="sec-sf"></section>
+    <section id="sec-sub"></section>
+  </div>
+</main>
+<footer id="foot"></footer>
+
+<script>
+/* =====================================================================
+   LINKS — the only part you edit.
+   For each item, set ONE of:
+     a number   → plays that file number in Family Player   e.g.  'sub-4': 1,
+     a URL      → opens that page in a new tab              e.g.  'sf-1': 'https://drive.google.com/file/d/…/view',
+   Leave an item out (or '') and it shows as "No link yet".
+   ===================================================================== */
+const LINKS = {
+  // Shared Field Master Class
+  'sf-1': '',
+  'sf-2': '',
+  'sf-3': '',
+  'sf-4': '',
+  'sf-5': '',
+  'sf-6': '',
+  'sf-7ab': '',
+  'sf-8a': '',
+  'sf-dmdf': '',
+  'sf-88': '',
+  'sf-9': '',
+  'sf-10': '',
+  'sf-11': '',
+
+  // Subliminal Meditations
+  'sub-1': '',
+  'sub-2': '',
+  'sub-3': '',
+  'sub-4': 1,   // "HighFrequencyActivationSubliminalMeditation" was #1 in your player — change if you renumbered it
+  'sub-5': '',
+  'sub-6': '',
+  'sub-7': '',
+  'sub-8': '',
+  'sub-9': '',
+  'sub-10': '',
+  'sub-11': '',
+  'sub-12': '',
+  'sub-13': '',
+  'sub-14': '',
+  'sub-15': '',
+  'sub-16': '',
+  'sub-17': '',
+  'sub-18': '',
+  'sub-19': '',
+  'sub-20': '',
+  'sub-21': '',
+  'sub-22': '',
+  'sub-23': '',
+};
+
+const PLAYER = 'index.html';
+
+/* ---------- catalog (from the course chart) ---------- */
+const SHARED_FIELD = [
+  ['sf-1', 'Part 1', 'Shared Field Part 1'],
+  ['sf-2', 'Part 2', 'Shared Field Part 2'],
+  ['sf-3', 'Part 3', 'Shared Field Part 3'],
+  ['sf-4', 'Part 4', 'Shared Field Part 4'],
+  ['sf-5', 'Part 5', 'Shared Field Part 5'],
+  ['sf-6', 'Part 6', 'Shared Field Part 6'],
+  ['sf-7ab', '7A & 7B', 'Shared Field Part 7A & 7B'],
+  ['sf-8a', '8A', 'Shared Field Part 8A'],
+  ['sf-dmdf', 'DMDF', 'Shared Field DMDF Manifestation'],
+  ['sf-88', '88', '88 Portal Instant Energy Shift'],
+  ['sf-9', 'Part 9', 'Shared Field Part 9'],
+  ['sf-10', 'Part 10', 'Shared Field Part 10'],
+  ['sf-11', 'Part 11', 'Shared Field Part 11'],
+];
+const SUBLIMINAL = [
+  'Alignment with God',
+  'Releasing Old Energies',
+  'Sacred Union',
+  'High Frequency Activation',
+  'DM DF Alignment Frequency Activation',
+  'Complete Cleansing Package',
+  'Special Protection',
+  'Light Code Transmission',
+  'Sacred Codes',
+  'Merkabah Protection',
+  'Womb Healing',
+  'Violet Flame Protection',
+  'Sacred Intimacy',
+  'Protecting Energy Leaks, Raising Union Frequency & Secret Codes',
+  'Ultimate Wish Fulfilment & Protection from Mind Manipulation',
+  'Complete Protection',
+  'Mastery of Neutralized Energies, Heal Blockages, Sexual Traumas, Inner Child Traumas',
+  'Cleanse, Pluck & Timeline Collapse',
+  '8/8 Portal Highest Timeline Activation, Abundance & Nighttime Protection',
+  'Sophia Frequency',
+  'Fully Awakened Divine Masculine',
+  'Release Push Pull Dynamics',
+  'Magical Permanent Harmonious Reunion',
+].map((t, i) => [`sub-${i + 1}`, `Part ${i + 1}`, t]);
+
+/* ---------- rendering ---------- */
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function linkOf(id){
+  const v = LINKS[id];
+  if (typeof v === 'number' && Number.isInteger(v) && v > 0) return { kind: 'play', num: v, href: `${PLAYER}#play=${v}` };
+  if (typeof v === 'string' && /^\d+$/.test(v.trim())) return { kind: 'play', num: +v, href: `${PLAYER}#play=${+v}` };
+  if (typeof v === 'string' && /^https?:\/\//i.test(v.trim())){
+    let host = ''; try { host = new URL(v.trim()).hostname.replace(/^www\./, ''); } catch {}
+    return { kind: 'url', href: v.trim(), host };
+  }
+  return null;
+}
+function row([id, part, title], sub){
+  const L = linkOf(id);
+  const label = sub ? `<span class="name"><b>${esc(title)}</b></span>` : `<span class="name">${esc(title)}</span>`;
+  const search = `${part} ${title}`.toLowerCase();
+  if (!L) return `<li data-s="${esc(search)}"><span class="nolink"><span class="part">${esc(part)}</span>${label}<span class="go">No link yet</span></span></li>`;
+  const go = L.kind === 'play' ? `<span class="go play">▶ #${L.num}</span>` : `<span class="go url" title="${esc(L.host)}">${/(^|\.)google\.com$/.test(L.host) ? 'Drive' : /youtu\.?be/.test(L.host) ? 'YouTube' : 'Open'} ↗</span>`;
+  const attrs = L.kind === 'url' ? ' target="_blank" rel="noopener"' : '';
+  return `<li data-s="${esc(search)}"><a href="${esc(L.href)}"${attrs} title="${esc(title)}"><span class="part">${esc(part)}</span>${label}${go}</a></li>`;
+}
+function section(el, heading, items, sub){
+  const nums = items.map(([id]) => linkOf(id)).filter(l => l?.kind === 'play').map(l => l.num);
+  el.innerHTML = `<h2>${esc(heading)} <span class="tag">Renew 2 months</span><span class="sp"></span>
+    ${nums.length > 1 ? `<a class="btn" href="${PLAYER}#play=${nums.join(',')}" title="Plays every item here that has a player number, in order">▶ Play all ${nums.length}</a>` : ''}</h2>
+    <ol>${items.map(it => row(it, sub)).join('')}</ol><div class="empty hide">No matches.</div>`;
+}
+section(document.getElementById('sec-sf'), 'Shared Field Master Class', SHARED_FIELD, false);
+section(document.getElementById('sec-sub'), 'Subliminal Meditations', SUBLIMINAL, true);
+
+const all = [...SHARED_FIELD, ...SUBLIMINAL], linked = all.filter(([id]) => linkOf(id)).length;
+document.getElementById('foot').textContent = `${linked} of ${all.length} items linked. Links are set in the LINKS list at the top of catalog.html.`;
+
+document.getElementById('q').addEventListener('input', e => {
+  const words = e.target.value.toLowerCase().split(/\s+/).filter(Boolean);
+  document.querySelectorAll('section').forEach(sec => {
+    let shown = 0;
+    sec.querySelectorAll('li').forEach(li => {
+      const ok = words.every(w => li.dataset.s.includes(w));
+      li.classList.toggle('hide', !ok); if (ok) shown++;
+    });
+    sec.querySelector('.empty').classList.toggle('hide', shown > 0);
+  });
+});
+</script>
+</body>
+</html>
