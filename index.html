@@ -87,7 +87,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 /* player */
 #player{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin:1rem 0;overflow:hidden;box-shadow:var(--shadow),var(--glow)}
 #stage{position:relative;background:#000;aspect-ratio:16/9;max-height:72vh;width:100%}
-#stage video,#ytwrap,#ytwrap iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+#stage video,#ytwrap,#ytwrap iframe,#drvframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 #audioart{position:absolute;inset:0 0 3.5rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5rem;color:#fff;text-align:center;padding:1rem;pointer-events:none;background:radial-gradient(circle at 50% 42%,#2c3a82 0%,#121845 38%,#05071a 75%)}
 #audioart .note{font-size:3.4rem;line-height:1;color:#e9c46a;text-shadow:0 0 28px rgba(233,196,106,.6)}
 #audioart .ttl{font-family:"Cormorant Garamond",Georgia,serif;font-size:1.6rem;font-weight:600;max-width:90%;overflow-wrap:anywhere}
@@ -150,6 +150,9 @@ code{background:var(--chip);padding:.05rem .35rem;border-radius:6px}
   .card h2.sectitle{font-size:1.4rem}
   header.top h1{font-size:1.35rem}
 }
+.drvnote{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .6rem;font-size:.9rem;color:var(--mute);border-top:1px solid var(--line)}
+.drvnote b{color:var(--ink)}
+.drvnote a.btn{text-decoration:none;display:inline-flex;align-items:center;font-size:.85rem;padding:.3rem .75rem;border-radius:999px;border:1px solid var(--line);background:var(--chip);color:var(--ink)}
 /* select mode */
 .selbtn{flex:0 0 auto;width:2.8rem;height:2.8rem;border-radius:50%;display:grid;place-items:center;border:2px solid var(--gold);background:transparent;color:var(--acc-ink);font:inherit;font-weight:800;font-size:1rem;cursor:pointer;transition:all .15s}
 .selbtn.on{background:var(--pri-bg);border-color:transparent;box-shadow:var(--glow)}
@@ -191,10 +194,12 @@ legend{font-size:.85rem;color:var(--mute);font-weight:600;padding:0;margin-botto
         <video id="vid" controls playsinline preload="metadata"></video>
         <div id="ytwrap" hidden><div id="ytmount"></div></div>
         <div id="audioart" hidden></div>
+        <iframe id="drvframe" hidden title="Google Drive player" allow="autoplay; fullscreen" allowfullscreen></iframe>
         <button id="tapplay" class="btn pri" hidden>▶ Tap to play</button>
       </div>
       <div class="now" id="now"></div>
       <div class="now warn" id="diag" hidden></div>
+      <div class="now drvnote" id="drvnote" hidden></div>
       <div class="controls">
         <button class="btn" data-act="prev">⏮ Prev</button>
         <button class="btn" data-act="next">Next ⏭</button>
@@ -391,7 +396,8 @@ function classifyFolderFiles(files){
     // Extension wins over type: Drive labels some .m4a files video/mp4.
     const isAudio = AUDIO_EXT.test(f.name) || (mime.startsWith('audio/') && !VIDEO_EXT.test(f.name));
     if (isAudio || mime.startsWith('video/') || VIDEO_EXT.test(f.name)){
-      videos.push({ id: sc ? sc.targetId : f.id, name: f.name, size: sc ? undefined : f.size, shortcut: !!sc, media: isAudio ? 'audio' : 'video' });
+      videos.push({ id: sc ? sc.targetId : f.id, name: f.name, size: sc ? undefined : f.size, shortcut: !!sc, media: isAudio ? 'audio' : 'video',
+        noDownload: sc ? undefined : f.capabilities?.canDownload === false, dur: sc ? undefined : Number(f.videoMediaMetadata?.durationMillis) || undefined });
       if (isAudio) scan.audio++; else scan.videos++;
       if (sc) scan.shortcuts++;
     } else scan.others.push(`${f.name} (${mime || 'unknown type'})`);
@@ -403,7 +409,7 @@ async function listVideos(folderId){
   do {
     const p = new URLSearchParams({
       q: `'${folderId}' in parents and trashed=false`,
-      fields: 'nextPageToken,files(id,name,size,mimeType,shortcutDetails(targetId,targetMimeType))', pageSize: '1000',
+      fields: 'nextPageToken,files(id,name,size,mimeType,capabilities(canDownload),videoMediaMetadata(durationMillis),shortcutDetails(targetId,targetMimeType))', pageSize: '1000',
       supportsAllDrives: 'true', includeItemsFromAllDrives: 'true'
     });
     if (pageToken) p.set('pageToken', pageToken);
@@ -413,7 +419,10 @@ async function listVideos(folderId){
   const { videos, scan } = classifyFolderFiles(all);
   // Shortcuts don't report the target's size; seeking needs it, so look it up.
   for (const v of videos.filter(v => v.shortcut)){
-    try { v.size = (await (await api(`${API}/files/${v.id}?fields=size&supportsAllDrives=true`)).json()).size; } catch {}
+    try {
+      const m = await (await api(`${API}/files/${v.id}?fields=size,capabilities(canDownload),videoMediaMetadata(durationMillis)&supportsAllDrives=true`)).json();
+      v.size = m.size; v.noDownload = m.capabilities?.canDownload === false; v.dur = Number(m.videoMediaMetadata?.durationMillis) || undefined;
+    } catch {}
   }
   scan.at = new Date();
   S.lastScan = scan;
@@ -504,9 +513,11 @@ function applySync(cfg, files){
       if (f.size && it.size !== f.size){ it.size = f.size; changed = true; }
       if (it.file !== f.name){ it.file = f.name; changed = true; }
       if (f.media && it.media !== f.media){ it.media = f.media; changed = true; }
+      if (f.noDownload !== undefined && !!it.noDownload !== f.noDownload){ if (f.noDownload) it.noDownload = true; else delete it.noDownload; changed = true; }
+      if (f.dur && it.dur !== f.dur){ it.dur = f.dur; changed = true; }
       return;
     }
-    cfg.items.push({ num: cfg.nextNumber++, type: 'drive', id: f.id, title: f.name.replace(/\.[^.]+$/, ''), file: f.name, size: f.size, media: f.media || 'video' });
+    cfg.items.push({ num: cfg.nextNumber++, type: 'drive', id: f.id, title: f.name.replace(/\.[^.]+$/, ''), file: f.name, size: f.size, media: f.media || 'video', ...(f.noDownload ? { noDownload: true } : {}), ...(f.dur ? { dur: f.dur } : {}) });
     added++; changed = true;
   });
   return { added, changed };
@@ -606,9 +617,51 @@ function startQueue(items, label){
   playCurrent();
   $('#player').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+/* Files whose owner turned off downloads can't be streamed, but Google Drive's own viewer can still play
+   them. It can't report when a video ends, so the queue moves on with Next or an optional timer. */
+S.viewOnly = new Set();
+function hideDriveViewer(){
+  const f = $('#drvframe');
+  if (!f.hidden){ f.hidden = true; f.src = 'about:blank'; }
+  $('#drvnote').hidden = true;
+  clearAutoNext();
+}
+function clearAutoNext(){ clearInterval(S.autoNextT); S.autoNextT = null; S.autoNextAt = 0; }
+const fmtDur = ms => { const t = Math.max(0, Math.round(ms / 1000)), h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s2 = t % 60;
+  return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s2).padStart(2, '0'); };
+function renderDriveNote(it){
+  const n = $('#drvnote'), more = S.qi + 1 < S.queue.length || S.loop;
+  const timer = !more || !it.dur ? ''
+    : S.autoNextAt ? `<button class="btn sm" data-act="autonextcancel">⏱ Next in ${fmtDur(S.autoNextAt - Date.now())} · Cancel</button>`
+    : `<button class="btn sm" data-act="autonext" title="Press after you start the video">⏱ Auto-next after ${fmtDur(it.dur)}</button>`;
+  n.innerHTML = `<span><b>Playing in Google Drive's viewer</b> — downloads are off for this file, so press play inside the video.${more ? ' It can\'t tell the app when it ends: tap Next when done.' : ''}</span>
+    ${more ? '<button class="btn sm pri" data-act="next">Next ⏭</button>' : ''}${timer}
+    <a class="btn" href="https://drive.google.com/file/d/${encodeURIComponent(it.id)}/view" target="_blank" rel="noopener">Open in Drive ↗</a>`;
+  n.hidden = false;
+}
+async function playDriveViewer(it){
+  const vid = $('#vid');
+  vid.pause(); vid.removeAttribute('src'); vid.load(); vid.hidden = true;
+  showAudioArt(null); showTapToPlay(false); showDiag('');
+  S.viewOnly.add(it.id);
+  if (!it.dur && it.media !== 'audio' && tokenValid()){
+    try { it.dur = Number((await (await api(`${API}/files/${encodeURIComponent(it.id)}?fields=videoMediaMetadata(durationMillis)&supportsAllDrives=true`)).json()).videoMediaMetadata?.durationMillis) || undefined; } catch {}
+    if (curItem() !== it) return;
+  }
+  const f = $('#drvframe');
+  f.src = `https://drive.google.com/file/d/${encodeURIComponent(it.id)}/preview`;
+  f.hidden = false;
+  renderDriveNote(it);
+}
 function playCurrent(){
   const it = curItem(); if (!it) return;
   const vid = $('#vid'), ytw = $('#ytwrap');
+  hideDriveViewer();
+  if (it.type === 'drive' && (it.noDownload || S.viewOnly.has(it.id))){
+    try { ytPlayer?.stopVideo?.(); } catch {}
+    ytw.hidden = true;
+    playDriveViewer(it); renderPlayer(); return;
+  }
   if (it.type === 'drive'){
     try { ytPlayer?.stopVideo?.(); } catch {}
     ytw.hidden = true; vid.hidden = false;
@@ -616,9 +669,10 @@ function playCurrent(){
     const go = async () => {
       if (it.virtual && !it.size){ // pasted Drive link: look up size (for seeking) and whether it's audio
         try {
-          const m = await (await api(`${API}/files/${encodeURIComponent(it.id)}?fields=size,mimeType&supportsAllDrives=true`)).json();
-          it.size = m.size;
+          const m = await (await api(`${API}/files/${encodeURIComponent(it.id)}?fields=size,mimeType,capabilities(canDownload),videoMediaMetadata(durationMillis)&supportsAllDrives=true`)).json();
+          it.size = m.size; it.dur = Number(m.videoMediaMetadata?.durationMillis) || undefined;
           if (m.mimeType?.startsWith('audio/')){ it.media = 'audio'; showAudioArt(it); }
+          if (m.capabilities?.canDownload === false){ if (curItem() === it){ playDriveViewer(it); } return; }
         } catch {}
         if (curItem() !== it) return;
       }
@@ -664,9 +718,10 @@ async function diagnoseDrive(it, code){
       let msg = '';
       try { const t = await r.text(); try { msg = JSON.parse(t).error?.message || t; } catch { msg = t; } } catch {}
       parts.push(`Stream test: Drive answered ${r.status}${msg ? ` — "${String(msg).slice(0, 240)}"` : ''}.`);
+      if (r.status === 403 && /cannot be downloaded|cannotDownloadFile/i.test(msg)) parts.viewOnly = true;
     }
   } catch (e){ parts.push('Stream test could not run: ' + e.message); }
-  return parts.join(' ');
+  return parts.viewOnly ? { viewOnly: true } : parts.join(' ');
 }
 function showTapToPlay(on){ $('#tapplay').hidden = !on; }
 $('#tapplay').addEventListener('click', () => { $('#vid').play().then(() => showTapToPlay(false)).catch(() => {}); });
@@ -676,7 +731,7 @@ function showAudioArt(it){
   a.innerHTML = it ? `<div class="note">♪</div><div class="ttl">${esc(it.title)}</div><div class="mute">#${it.num}</div>` : '';
 }
 function stopPlayer(){
-  showDiag('');
+  showDiag(''); hideDriveViewer();
   showAudioArt(null); showTapToPlay(false);
   const vid = $('#vid');
   vid.pause(); vid.removeAttribute('src'); vid.load();
@@ -702,9 +757,12 @@ function setupVideoEvents(){
     if (!tokenValid()){ S.resumeAt = vid.currentTime || 0; showAuthBanner(); return; }
     const code = vid.error?.code;
     const more = S.qi + 1 < S.queue.length || S.loop;
-    toast(`#${it.num} couldn't play${more ? ' — skipping' : ''}. Details under the player.`, 4000);
     showDiag(`#${it.num} couldn't play — checking why…`);
-    showDiag(`#${it.num} "${it.title}" couldn't play. ${await diagnoseDrive(it, code)}`);
+    const d = await diagnoseDrive(it, code);
+    if (curItem() !== it) return;
+    if (d?.viewOnly){ showDiag(''); playDriveViewer(it); toast('Downloads are off for this file — playing it in Google Drive\'s viewer', 4000); return; }
+    toast(`#${it.num} couldn't play${more ? ' — skipping' : ''}. Details under the player.`, 4000);
+    showDiag(`#${it.num} "${it.title}" couldn't play. ${d}`);
     if (more) setTimeout(next, 2500);
   });
   vid.addEventListener('playing', () => showDiag(''));
@@ -733,7 +791,7 @@ function showApp(){ $('#gate').hidden = true; $('#app').hidden = false; render()
 
 function itemRow(it, actions){
   return `<li><span class="num">${it.num}</span><span class="src ${it.type === 'youtube' ? 'yt' : ''}">${it.type === 'youtube' ? 'YouTube' : it.media === 'audio' ? 'Audio' : 'Drive'}</span>
-    <span class="t" title="${esc(it.title)}">${esc(it.title)}${it.missing ? ' <span class="warn">(missing from Drive)</span>' : ''}</span>${actions}</li>`;
+    <span class="t" title="${esc(it.title)}">${esc(it.title)}${it.missing ? ' <span class="warn">(missing from Drive)</span>' : ''}${it.noDownload ? ' <span class="src" title="Downloads are turned off for this file; it plays in Google Drive\'s own viewer">view-only</span>' : ''}</span>${actions}</li>`;
 }
 function render(){
   if (!S.cfg || $('#app').hidden) return;
@@ -1287,6 +1345,18 @@ document.addEventListener('click', async e => {
       rerenderCatalog(); break;
     }
     case 'selintros': S.selIntros = b.checked; break;
+    case 'autonext': {
+      const it = curItem(); if (!it?.dur) return;
+      clearAutoNext(); S.autoNextAt = Date.now() + it.dur + 3000;
+      S.autoNextT = setInterval(() => {
+        if (curItem() !== it){ clearAutoNext(); return; }
+        if (Date.now() >= S.autoNextAt){ clearAutoNext(); next(); return; }
+        const btn = document.querySelector('[data-act=autonextcancel]');
+        if (btn) btn.textContent = `⏱ Next in ${fmtDur(S.autoNextAt - Date.now())} · Cancel`;
+      }, 1000);
+      renderDriveNote(it); break;
+    }
+    case 'autonextcancel': clearAutoNext(); if (curItem()) renderDriveNote(curItem()); break;
     case 'selclear': S.sel = []; rerenderCatalog(); break;
     case 'selplay': {
       const items = selectionItems();
