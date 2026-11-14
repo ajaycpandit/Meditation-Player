@@ -85,8 +85,12 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .mute{color:var(--mute)}
 .warn{color:var(--warn)}
 /* player */
-#player{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin:1rem 0;overflow:hidden;box-shadow:var(--shadow),var(--glow)}
-#stage{position:relative;background:#000;aspect-ratio:16/9;max-height:72vh;width:100%}
+#player{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin:1rem 0;overflow:hidden;box-shadow:var(--shadow),var(--glow);scroll-margin-top:5rem}
+/* The stage gets its own compositing layer: embedded YouTube/Drive players inside a rounded,
+   clipped box otherwise sometimes don't repaint until something else on the page changes. */
+#stage{position:relative;background:#000;aspect-ratio:16/9;max-height:72vh;width:100%;isolation:isolate;transform:translateZ(0)}
+/* Embedded players stay rendered while not in use (hidden, not removed) so they don't come back blank. */
+#ytwrap[hidden],#drvframe[hidden]{display:block!important;visibility:hidden;pointer-events:none}
 #stage video,#ytwrap,#ytwrap iframe,#drvframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 #audioart{position:absolute;inset:0 0 3.5rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5rem;color:#fff;text-align:center;padding:1rem;pointer-events:none;background:radial-gradient(circle at 50% 42%,#2c3a82 0%,#121845 38%,#05071a 75%)}
 #audioart .note{font-size:3.4rem;line-height:1;color:#e9c46a;text-shadow:0 0 28px rgba(233,196,106,.6)}
@@ -116,6 +120,11 @@ code{background:var(--chip);padding:.05rem .35rem;border-radius:6px}
 .fchip.on{background:var(--pri-bg);color:var(--acc-ink);border-color:transparent;box-shadow:var(--glow)}
 .fchips .sep{width:1px;background:var(--line);margin:0 .2rem}
 .catsec{padding:0;overflow:hidden}
+.secbtn{display:flex;align-items:center;gap:.7rem;background:none;border:0;padding:0;margin:0;color:inherit;font:inherit;text-align:left;cursor:pointer;flex:1;min-width:12rem}
+.secbtn .chev{display:grid;place-items:center;width:2rem;height:2rem;border-radius:50%;border:1px solid var(--line);color:var(--gold);flex:0 0 auto;transition:transform .25s}
+.catsec.closed .chev{transform:rotate(-90deg)}
+.catsec.closed .sechead{border-bottom:0}
+.seccount{display:block;font-size:.78rem;color:var(--mute);margin-top:.2rem}
 .sechead{display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;padding:1rem 1.2rem .85rem;border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--gold-soft),transparent 70%)}
 .card h2.sectitle{font-family:"Cormorant Garamond",Georgia,serif;font-size:1.6rem;font-weight:600;margin:0;line-height:1.1;color:var(--ink);text-transform:none;letter-spacing:.005em}
 .sectag{display:inline-block;margin-top:.35rem;font-size:.7rem;font-weight:700;letter-spacing:.06em;color:var(--gold);border:1px solid var(--gold);border-radius:999px;padding:.08rem .55rem;opacity:.85}
@@ -145,6 +154,8 @@ code{background:var(--chip);padding:.05rem .35rem;border-radius:6px}
 .catfoot{margin:1rem 0}
 .empty{padding:.8rem;color:var(--mute)}
 @media (max-width:560px){
+  nav.tabs{gap:.1rem;padding:.25rem}
+  nav.tabs button{min-width:0;padding:.55rem .35rem;font-size:.82rem}
   .ci-intro,.ci-note{margin-left:0}
   .part{min-width:3.1rem}
   .card h2.sectitle{font-size:1.4rem}
@@ -153,6 +164,40 @@ code{background:var(--chip);padding:.05rem .35rem;border-radius:6px}
 .drvnote{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .6rem;font-size:.9rem;color:var(--mute);border-top:1px solid var(--line)}
 .drvnote b{color:var(--ink)}
 .drvnote a.btn{text-decoration:none;display:inline-flex;align-items:center;font-size:.85rem;padding:.3rem .75rem;border-radius:999px;border:1px solid var(--line);background:var(--chip);color:var(--ink)}
+/* history */
+.lastp{color:var(--teal)}
+.hrow .htime{flex:0 0 4.6rem;font-size:.82rem;color:var(--mute);font-variant-numeric:tabular-nums}
+.hrow .t{white-space:normal}
+.hrow .hs{display:block;font-size:.8rem;color:var(--mute)}
+.hrow .ok{color:var(--teal);font-weight:700}
+.hstats{display:flex;gap:1.4rem;flex-wrap:wrap}
+.hstats div b{display:block;font-family:"Cormorant Garamond",Georgia,serif;font-size:2rem;line-height:1.1;color:var(--gold)}
+.todayrow+.todayrow{margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--line)}
+/* calendar */
+.calhead{display:flex;align-items:center;gap:.5rem;margin-bottom:.7rem}
+.calhead .mname{flex:1;font-family:"Cormorant Garamond",Georgia,serif;font-size:1.6rem;font-weight:600}
+.calgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.3rem}
+.caldow{font-size:.7rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);text-align:center;padding:.2rem 0}
+.calcell{min-height:5.4rem;border-radius:12px;background:var(--chip);border:1px solid var(--line);padding:.3rem;text-align:left;display:flex;flex-direction:column;gap:.18rem;font:inherit;color:inherit;cursor:pointer;overflow:hidden;min-width:0;transition:border-color .2s}
+.calcell:hover{border-color:var(--gold)}
+.calcell.blank{visibility:hidden}
+.calcell.past{opacity:.72}
+.calcell.sel{border-color:var(--gold);box-shadow:var(--glow);opacity:1}
+.dnum{font-weight:800;font-size:.82rem;width:1.65rem;height:1.65rem;border-radius:50%;display:grid;place-items:center;flex:0 0 auto}
+.calcell.today .dnum{background:var(--pri-bg);color:var(--acc-ink)}
+.pchip{font-size:.68rem;line-height:1.25;padding:.1rem .35rem;border-radius:6px;background:var(--gold-soft);color:var(--gold);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pchip.wk{background:transparent;border:1px dashed var(--gold);opacity:.85}
+.pmore{font-size:.66rem;color:var(--mute)}
+.played{margin-top:auto;font-size:.68rem;font-weight:700;color:var(--teal)}
+.daypanel{margin-top:1rem;padding-top:1rem;border-top:1px solid var(--line)}
+.daypanel h3{margin:0 0 .5rem;font-family:"Cormorant Garamond",Georgia,serif;font-size:1.45rem;font-weight:600}
+.daypanel select{width:auto;flex:1;min-width:10rem}
+@media (max-width:560px){
+  .calcell{min-height:3.7rem;padding:.2rem;gap:.12rem}
+  .pchip{font-size:0;height:.42rem;padding:0;border-radius:99px}
+  .pmore{display:none}
+  .played{font-size:.6rem}
+}
 /* select mode */
 .selbtn{flex:0 0 auto;width:2.8rem;height:2.8rem;border-radius:50%;display:grid;place-items:center;border:2px solid var(--gold);background:transparent;color:var(--acc-ink);font:inherit;font-weight:800;font-size:1rem;cursor:pointer;transition:all .15s}
 .selbtn.on{background:var(--pri-bg);border-color:transparent;box-shadow:var(--glow)}
@@ -213,6 +258,7 @@ legend{font-size:.85rem;color:var(--mute);font-weight:600;padding:0;margin-botto
       <button data-act="tab" data-tab="play">Play</button>
       <button data-act="tab" data-tab="library">Library</button>
       <button data-act="tab" data-tab="playlists">Playlists</button>
+      <button data-act="tab" data-tab="history">History</button>
       <button data-act="tab" data-tab="settings">Settings</button>
     </nav>
     <div id="view"></div>
@@ -446,6 +492,10 @@ function normalizeCfg(c){
   c.profiles.forEach(p => {
     p.playlists = Array.isArray(p.playlists) ? p.playlists : [];
     p.schedule = p.schedule && typeof p.schedule === 'object' ? p.schedule : {};
+    for (const k of Object.keys(p.schedule)) p.schedule[k] = [].concat(p.schedule[k] || []).filter(Boolean); // weekday → [playlist ids]
+    p.dated = p.dated && typeof p.dated === 'object' ? p.dated : {};                                          // 'YYYY-MM-DD' → [playlist ids]
+    for (const k of Object.keys(p.dated)) p.dated[k] = [].concat(p.dated[k] || []).filter(Boolean);
+    p.history = Array.isArray(p.history) ? p.history : [];
   });
   normalizeCatalog(c);
   return c;
@@ -469,7 +519,7 @@ async function writeConfig(id, obj){
 /* Every edit re-reads the latest file, applies the change, then writes —
    so two family members editing at different times never overwrite each other. */
 let saving = Promise.resolve();
-function saveCfg(mutator){
+function saveCfg(mutator, opts = {}){
   const run = saving.then(async () => {
     if (!tokenValid() && tokenClient) await requestToken('');   // sign-in lasts ~1 hour; renew it before saving
     const latest = await readConfig(S.cfgId);
@@ -480,7 +530,7 @@ function saveCfg(mutator){
     return res === undefined ? true : res;
   });
   saving = run.catch(() => {});
-  return run.catch(e => { S.lastSaveError = e.message; toast('Save failed: ' + e.message, 4500); return null; });
+  return run.catch(e => { S.lastSaveError = e.message; if (!opts.quiet) toast('Save failed: ' + e.message, 4500); return null; });
 }
 
 /* Move an item from number `from` to `to`. If `to` is taken, the two swap.
@@ -589,7 +639,7 @@ function ensureYT(){
       playerVars: { autoplay: 1, playsinline: 1, rel: 0 },
       events: {
         onReady: () => res(ytPlayer),
-        onStateChange: e => { if (e.data === YT.PlayerState.ENDED && curItem()?.type === 'youtube') next(); },
+        onStateChange: e => { if (e.data === YT.PlayerState.ENDED && curItem()?.type === 'youtube'){ if (S.sess) S.sess.done = true; next(); } },
         onError: e => {
           const it = curItem();
           toast(`#${it?.num} can't be played here (YouTube error ${e.data}) — skipping`, 4000);
@@ -620,6 +670,15 @@ function startQueue(items, label){
 /* Files whose owner turned off downloads can't be streamed, but Google Drive's own viewer can still play
    them. It can't report when a video ends, so the queue moves on with Next or an optional timer. */
 S.viewOnly = new Set();
+/* Nudge an embedded player to redraw after it's shown (works around browsers leaving it blank
+   until the next click elsewhere). */
+function repaintEmbed(el){
+  if (!el) return;
+  requestAnimationFrame(() => {
+    el.style.width = 'calc(100% - 1px)';
+    requestAnimationFrame(() => { el.style.width = ''; });
+  });
+}
 function hideDriveViewer(){
   const f = $('#drvframe');
   if (!f.hidden){ f.hidden = true; f.src = 'about:blank'; }
@@ -644,6 +703,7 @@ async function playDriveViewer(it){
   vid.pause(); vid.removeAttribute('src'); vid.load(); vid.hidden = true;
   showAudioArt(null); showTapToPlay(false); showDiag('');
   S.viewOnly.add(it.id);
+  if (S.sess) S.sess.viewer = true;
   if (!it.dur && it.media !== 'audio' && tokenValid()){
     try { it.dur = Number((await (await api(`${API}/files/${encodeURIComponent(it.id)}?fields=videoMediaMetadata(durationMillis)&supportsAllDrives=true`)).json()).videoMediaMetadata?.durationMillis) || undefined; } catch {}
     if (curItem() !== it) return;
@@ -651,12 +711,14 @@ async function playDriveViewer(it){
   const f = $('#drvframe');
   f.src = `https://drive.google.com/file/d/${encodeURIComponent(it.id)}/preview`;
   f.hidden = false;
+  repaintEmbed(f);
   renderDriveNote(it);
 }
 function playCurrent(){
   const it = curItem(); if (!it) return;
   const vid = $('#vid'), ytw = $('#ytwrap');
   hideDriveViewer();
+  beginSession(it);
   if (it.type === 'drive' && (it.noDownload || S.viewOnly.has(it.id))){
     try { ytPlayer?.stopVideo?.(); } catch {}
     ytw.hidden = true;
@@ -685,7 +747,7 @@ function playCurrent(){
     vid.pause(); vid.removeAttribute('src'); vid.load();
     vid.hidden = true; ytw.hidden = false;
     showAudioArt(null); showTapToPlay(false);
-    ensureYT().then(p => p.loadVideoById(it.id)).catch(() => { toast('YouTube player failed to load — skipping'); setTimeout(next, 1500); });
+    ensureYT().then(p => { p.loadVideoById(it.id); repaintEmbed(p.getIframe?.()); }).catch(() => { toast('YouTube player failed to load — skipping'); setTimeout(next, 1500); });
   }
   renderPlayer();
 }
@@ -731,6 +793,7 @@ function showAudioArt(it){
   a.innerHTML = it ? `<div class="note">♪</div><div class="ttl">${esc(it.title)}</div><div class="mute">#${it.num}</div>` : '';
 }
 function stopPlayer(){
+  endSession();
   showDiag(''); hideDriveViewer();
   showAudioArt(null); showTapToPlay(false);
   const vid = $('#vid');
@@ -750,7 +813,14 @@ function toggleFull(){
 }
 function setupVideoEvents(){
   const vid = $('#vid');
-  vid.addEventListener('ended', () => { if (curItem()?.type === 'drive') next(); });
+  vid.addEventListener('ended', () => { if (curItem()?.type === 'drive'){ if (S.sess) S.sess.done = true; next(); } });
+  vid.addEventListener('timeupdate', () => {   // count only time actually played (not seeks)
+    const x = S.sess; if (!x || curItem()?.type !== 'drive') return;
+    const t = vid.currentTime;
+    if (x.lastT != null){ const d = t - x.lastT; if (d > 0 && d < 2) x.heard += d * 1000; }
+    x.lastT = t;
+  });
+  vid.addEventListener('seeking', () => { if (S.sess) S.sess.lastT = null; });
   vid.addEventListener('error', async () => {
     const it = curItem();
     if (it?.type !== 'drive' || !vid.getAttribute('src')) return;
@@ -766,7 +836,17 @@ function setupVideoEvents(){
     if (more) setTimeout(next, 2500);
   });
   vid.addEventListener('playing', () => showDiag(''));
-  vid.addEventListener('loadedmetadata', () => { if (S.resumeAt){ vid.currentTime = S.resumeAt; S.resumeAt = 0; } });
+  vid.addEventListener('loadedmetadata', () => {
+    if (S.resumeAt){ vid.currentTime = S.resumeAt; S.resumeAt = 0; }
+    if (S.sess && !S.sess.dur && isFinite(vid.duration)) S.sess.dur = Math.round(vid.duration);
+  });
+  setInterval(() => {   // YouTube: count seconds while its player reports "playing"
+    const x = S.sess;
+    if (!x || curItem()?.type !== 'youtube' || ytPlayer?.getPlayerState?.() !== 1) return;
+    x.heard += 1000;
+    if (!x.dur){ const d = ytPlayer.getDuration?.(); if (d) x.dur = Math.round(d); }
+  }, 1000);
+  window.addEventListener('pagehide', () => endSession());
 }
 
 /* ---------- rendering ---------- */
@@ -803,16 +883,16 @@ function render(){
   if (S.tab === 'play') v.innerHTML = viewPlay(p);
   else if (S.tab === 'library') v.innerHTML = viewLibrary();
   else if (S.tab === 'playlists') v.innerHTML = S.editing ? viewEditor() : viewPlaylists(p);
+  else if (S.tab === 'history') v.innerHTML = viewHistory(p);
   else v.innerHTML = viewSettings(p);
   renderPlayer();
 }
 function viewPlay(p){
-  const [dk, dn] = DAYS[new Date().getDay()];
-  const tp = p.playlists.find(x => x.id === p.schedule[dk]);
+  const dn = DAYS[new Date().getDay()][1], plans = plansFor(p, localKey(new Date()));
   return `
-  ${tp ? `<div class="card today"><h2>Today · ${dn}</h2>
-    <div class="row"><span class="big serif" style="flex:1;font-size:1.5rem">${esc(tp.name)} <span class="mute" style="font-family:inherit;font-size:.9rem">· ${tp.items.length} items</span></span>
-      <button class="btn pri" data-act="playpl" data-id="${tp.id}">▶ Play today's list</button></div></div>` : ''}
+  ${plans.length ? `<div class="card today"><h2>Today · ${dn}</h2>
+    ${plans.map(({ pl }) => `<div class="row todayrow"><span class="big serif" style="flex:1;font-size:1.45rem">${esc(pl.name)} <span class="mute" style="font-family:inherit;font-size:.9rem">· ${pl.items.length} item${pl.items.length === 1 ? '' : 's'}</span></span>
+      <button class="btn pri" data-act="playpl" data-id="${pl.id}">▶ Play</button></div>`).join('')}</div>` : ''}
   <div class="card quickbar"><label for="quick">Play by number</label>
     <input id="quick" inputmode="numeric" placeholder="e.g. 3, 7, 12 or 4-9" value="${esc(S.quick)}">
     <button class="btn pri" data-act="quickplay">▶ Play</button></div>
@@ -865,11 +945,7 @@ function viewPlaylists(p){
       <button class="btn sm" data-act="editpl" data-id="${pl.id}">Edit</button></li>`).join('') || '<li class="mute">No playlists yet.</li>'}</ul>
     <p><button class="btn pri" data-act="newpl">＋ New playlist</button></p>
   </div>
-  <div class="card"><h2>Weekly schedule</h2>
-    <div class="days">${DAYS.map(([k, n]) => `<label>${n}<select data-day="${k}">
-      <option value="">— nothing —</option>${p.playlists.map(pl => `<option value="${pl.id}" ${p.schedule[k] === pl.id ? 'selected' : ''}>${esc(pl.name)}</option>`).join('')}
-    </select></label>`).join('')}</div>
-  </div>`;
+  ${viewCalendar(p)}`;
 }
 function viewEditor(){
   const e = S.editing;
@@ -955,9 +1031,9 @@ async function afterSignIn(){
   if (!curProfile()) return showGate('profile');
   showApp();
   runPendingPlay();
-  syncFolder(true).then(ensureCatalog);
+  syncFolder(true).then(ensureCatalog).then(() => scheduleHistFlush(500));
 }
-function pickProfile(id){ S.profileId = id; store.set('fp_profile_' + S.folderId, id); S.editing = null; showApp(); runPendingPlay(); (S.lastScan ? Promise.resolve() : syncFolder(true)).then(ensureCatalog); }
+function pickProfile(id){ S.profileId = id; store.set('fp_profile_' + S.folderId, id); S.editing = null; showApp(); runPendingPlay(); (S.lastScan ? Promise.resolve() : syncFolder(true)).then(ensureCatalog).then(() => scheduleHistFlush(500)); }
 
 /* ======================================================================
    CATALOG — shared by the whole family, saved in player-config.json.
@@ -965,13 +1041,13 @@ function pickProfile(id){ S.profileId = id; store.set('fp_profile_' + S.folderId
    a file never breaks the catalog.
    ====================================================================== */
 const CATALOG_SEED = [
-  { title: 'Shared Field Master Class', tag: 'Renew 2 months', items: [
+  { title: 'Shared Field Master Class', tag: '', items: [
     ['sf-1', 'Part 1', 'Shared Field Part 1'], ['sf-2', 'Part 2', 'Shared Field Part 2'], ['sf-3', 'Part 3', 'Shared Field Part 3'],
     ['sf-4', 'Part 4', 'Shared Field Part 4'], ['sf-5', 'Part 5', 'Shared Field Part 5'], ['sf-6', 'Part 6', 'Shared Field Part 6'],
     ['sf-7ab', '7A & 7B', 'Shared Field Part 7A & 7B'], ['sf-8a', '8A', 'Shared Field Part 8A'],
     ['sf-dmdf', 'DMDF', 'Shared Field DMDF Manifestation'], ['sf-88', '88', '88 Portal Instant Energy Shift'],
     ['sf-9', 'Part 9', 'Shared Field Part 9'], ['sf-10', 'Part 10', 'Shared Field Part 10'], ['sf-11', 'Part 11', 'Shared Field Part 11'] ] },
-  { title: 'Subliminal Meditations', tag: 'Renew 2 months', items: [
+  { title: 'Subliminal Meditations', tag: '', items: [
     'Alignment with God', 'Releasing Old Energies', 'Sacred Union', 'High Frequency Activation', 'DM DF Alignment Frequency Activation',
     'Complete Cleansing Package', 'Special Protection', 'Light Code Transmission', 'Sacred Codes', 'Merkabah Protection', 'Womb Healing',
     'Violet Flame Protection', 'Sacred Intimacy', 'Protecting Energy Leaks, Raising Union Frequency & Secret Codes',
@@ -1114,6 +1190,7 @@ function normalizeCatalog(c){
   if (!Array.isArray(c.catalog.sections)){ delete c.catalog; return; }
   c.catalog.sections.forEach(sec => {
     sec.id ||= uid(); sec.title ||= 'Untitled'; sec.items = Array.isArray(sec.items) ? sec.items : [];
+    if (/^renew 2 months$/i.test(sec.tag || '')) sec.tag = '';   // label removed at Ajay's request
     sec.items.forEach(ci => {
       ci.id ||= uid(); ci.part ??= ''; ci.title ??= ''; ci.link ??= null; ci.intro ??= null; ci.note ??= '';
       ci.when = Array.isArray(ci.when) ? ci.when : []; ci.where = Array.isArray(ci.where) ? ci.where : []; ci.pose = Array.isArray(ci.pose) ? ci.pose : [];
@@ -1123,6 +1200,7 @@ function normalizeCatalog(c){
 
 /* ---------- catalog: filters & rendering ---------- */
 S.catF = new Set(); S.catQ = ''; S.catEdit = false; S.openNotes = new Set();
+S.collapsed = new Set((() => { try { return JSON.parse(store.get('fp_collapsed') || '[]'); } catch { return []; } })());
 S.catSel = false; S.sel = []; S.selIntros = false;   // select mode: S.sel holds {sec, ci} ids in tap order
 S.showNotes = store.get('fp_shownotes') === '1';
 function matchCI(sec, ci){
@@ -1152,6 +1230,7 @@ function catBody(){
   if (!cat) return `<div class="card"><p class="mute">Setting up the catalog…</p></div>`;
   const filtering = S.catF.size > 0 || S.catQ.trim() !== '';
   const curRef = curItem() ? refOf(curItem()) : '';
+  S.lastMap = {}; const pr = curProfile(); if (pr) for (const e of allHistory(pr)) S.lastMap[e.ref] ||= e.at;
   const secs = cat.sections.map((sec, si) => {
     const items = sec.items.filter(ci => matchCI(sec, ci));
     if (filtering && !items.length && !S.catEdit) return '';
@@ -1163,10 +1242,13 @@ function catBody(){
          <button class="iconbtn" data-act="secmove" data-sec="${sec.id}" data-dir="1" title="Move down" ${si === cat.sections.length - 1 ? 'disabled' : ''}>${ICONS.down}</button>
          <button class="btn sm danger" data-act="secdel" data-sec="${sec.id}">Delete</button>`
       : nums.length > 1 ? `<button class="btn pri sm" data-act="secplay" data-sec="${sec.id}">${ICONS.play} Play all ${nums.length}</button>` : '';
-    return `<section class="card catsec">
-      <header class="sechead"><div><h2 class="sectitle">${esc(sec.title)}</h2>${sec.tag ? `<span class="sectag">${esc(sec.tag)}</span>` : ''}</div>
-        <div class="row">${tools}</div></header>
-      <ol class="cilist">${items.map((ci, ii) => ciRow(sec, ci, ii, curRef)).join('') || `<li class="empty">${filtering ? 'No meditations match.' : 'Empty section.'}</li>`}</ol>
+    const closed = S.collapsed.has(sec.id) && !filtering;   // a search or filter always shows its matches
+    return `<section class="card catsec ${closed ? 'closed' : ''}">
+      <header class="sechead"><button class="secbtn" data-act="sectoggle" data-sec="${sec.id}" aria-expanded="${!closed}">
+          <span class="chev">${ICONS.down}</span><span><h2 class="sectitle">${esc(sec.title)}</h2>
+          <span class="seccount">${sec.items.length} meditation${sec.items.length === 1 ? '' : 's'}${closed && nums.length ? ` · ${nums.length} linked` : ''}</span>${sec.tag ? `<span class="sectag">${esc(sec.tag)}</span>` : ''}</span></button>
+        <div class="row">${closed ? '' : tools}</div></header>
+      <ol class="cilist" ${closed ? 'hidden' : ''}>${items.map((ci, ii) => ciRow(sec, ci, ii, curRef)).join('') || `<li class="empty">${filtering ? 'No meditations match.' : 'Empty section.'}</li>`}</ol>
     </section>`;
   }).join('');
   const none = filtering && !secs.trim()
@@ -1202,7 +1284,7 @@ function ciRow(sec, ci, idx, curRef){
   const isNow = r?.kind === 'item' && refOf(r.item) === curRef;
   return `<li class="ci ${!r ? 'unlinked' : ''} ${isNow ? 'now' : ''} ${selIdx >= 0 ? 'sel' : ''}" data-sec="${sec.id}" data-ci="${ci.id}" data-ref="${r?.kind === 'item' ? esc(refOf(r.item)) : ''}">
     <div class="ci-main" ${S.catSel && selectable ? 'data-act="cisel"' : ''}><span class="part">${esc(ci.part || '•')}</span>
-      <div class="ci-text"><div class="ci-title">${esc(ci.title)}</div><div class="ci-meta">${tags}<span>${status}</span></div></div>
+      <div class="ci-text"><div class="ci-title">${esc(ci.title)}</div><div class="ci-meta">${tags}<span>${status}</span>${r?.kind === 'item' && S.lastMap?.[refOf(r.item)] ? `<span class="lastp">· ${relDay(S.lastMap[refOf(r.item)])}</span>` : ''}</div></div>
       ${noteBtn}${action}</div>${intro}
     ${ci.note && noteOpen ? `<div class="ci-note">${esc(ci.note)}</div>` : ''}</li>`;
 }
@@ -1298,6 +1380,137 @@ async function saveEditor(){
   else editorError(`Couldn't save: ${S.lastSaveError || 'unknown error'}. Your changes are still here — check your connection or sign-in and press Save again.`);
 }
 
+/* ======================================================================
+   HISTORY — one entry per thing played, saved to the profile in
+   player-config.json. Entries wait in this browser until saved, so
+   closing the tab mid-meditation doesn't lose them.
+   ====================================================================== */
+const localKey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const keyToDate = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
+const pendKey = (folder = S.folderId, prof = S.profileId) => `fp_hist_${folder}_${prof}`;
+function readPending(key = pendKey()){ try { return JSON.parse(store.get(key) || '[]'); } catch { return []; } }
+function beginSession(it){
+  endSession();
+  if (!it || !S.profileId) return;
+  S.sess = { ref: refOf(it), title: it.title, num: it.virtual ? null : it.num, from: S.qLabel || '', start: Date.now(),
+    heard: 0, lastT: null, done: false, viewer: false, dur: it.dur ? Math.round(it.dur / 1000) : null, prof: S.profileId, folder: S.folderId };
+}
+function endSession(){
+  const x = S.sess; S.sess = null;
+  if (!x) return;
+  const heard = Math.round(x.heard / 1000);
+  if (!x.done && !x.viewer && heard < 5) return;   // ignore accidental taps and quick skips
+  const e = { id: uid(), at: new Date(x.start).toISOString(), ref: x.ref, title: x.title, num: x.num,
+    heard: x.viewer ? null : heard, dur: x.dur || null, done: x.done };
+  if (x.viewer) e.via = 'viewer';
+  if (x.from && x.from !== x.title) e.from = x.from;
+  const key = pendKey(x.folder, x.prof);
+  store.set(key, JSON.stringify([...readPending(key), e].slice(-500)));
+  scheduleHistFlush();
+}
+function scheduleHistFlush(delay = 4000){ clearTimeout(S.histT); S.histT = setTimeout(flushHistory, delay); }
+async function flushHistory(){
+  const pend = readPending();
+  if (!pend.length || !S.cfgId || !curProfile() || !tokenValid()) return;   // retried after the next sign-in
+  const ids = new Set(pend.map(e => e.id));
+  const ok = await saveCfg(cfg => {
+    const pr = curProfile(cfg); if (!pr) return;
+    const have = new Set(pr.history.map(h => h.id));
+    pr.history = [...pend.filter(e => !have.has(e.id)), ...pr.history].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 1000);
+  }, { quiet: true });
+  if (ok){
+    const left = readPending().filter(e => !ids.has(e.id));
+    store.set(pendKey(), left.length ? JSON.stringify(left) : null);
+    if (S.tab === 'history') render();
+  }
+}
+function allHistory(p){
+  const seen = new Set();
+  return [...(p.id === S.profileId ? readPending() : []), ...(p.history || [])]
+    .filter(e => !seen.has(e.id) && seen.add(e.id)).sort((a, b) => b.at.localeCompare(a.at));
+}
+const fmtMin = sec => sec == null ? '' : sec < 60 ? `${sec} s` : `${Math.round(sec / 60)} min`;
+function relDay(iso){
+  const days = Math.round((keyToDate(localKey(new Date())) - keyToDate(localKey(new Date(iso)))) / 864e5);
+  return days <= 0 ? 'played today' : days === 1 ? 'played yesterday' : days < 7 ? `played ${days} days ago`
+    : 'played ' + new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+function dayLabel(key){
+  const days = Math.round((keyToDate(localKey(new Date())) - keyToDate(key)) / 864e5);
+  return days === 0 ? 'Today' : days === 1 ? 'Yesterday' : keyToDate(key).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+}
+function histStatus(e){
+  const how = e.done ? '<span class="ok">✓ finished</span>' : e.via === 'viewer' ? 'opened in Drive\'s viewer' : `${fmtMin(e.heard)}${e.dur ? ` of ${fmtMin(e.dur)}` : ''}`;
+  return how + (e.from ? ` · from ${esc(e.from)}` : '');
+}
+function histRow(e, withTime = true){
+  return `<li class="hrow">${withTime ? `<span class="htime">${new Date(e.at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</span>` : ''}
+    <span class="t"><b>${esc(e.title)}</b>${e.num ? ` <span class="mute">#${e.num}</span>` : ''}<span class="hs">${histStatus(e)}</span></span>
+    <button class="btn sm" data-act="histplay" data-ref="${esc(e.ref)}" data-title="${esc(e.title)}" title="Play again">▶</button></li>`;
+}
+function viewHistory(p){
+  const H = allHistory(p);
+  if (!H.length) return `<div class="card"><h2>History · ${esc(p.name)}</h2><p class="mute">Nothing played yet. Everything ${esc(p.name)} plays (for at least a few seconds) shows up here, grouped by day.</p></div>`;
+  const weekAgo = Date.now() - 7 * 864e5, week = H.filter(e => Date.parse(e.at) >= weekAgo);
+  const mins = Math.round(week.reduce((t, e) => t + (e.heard || 0), 0) / 60);
+  const daysActive = new Set(week.map(e => localKey(new Date(e.at)))).size;
+  const groups = []; for (const e of H){ const k = localKey(new Date(e.at)); if (groups.at(-1)?.key !== k) groups.push({ key: k, list: [] }); groups.at(-1).list.push(e); }
+  const show = S.histDays || 14;
+  return `<div class="card"><h2>History · ${esc(p.name)} · last 7 days</h2>
+    <div class="hstats"><div><b>${week.length}</b>sessions</div><div><b>${mins}</b>minutes listened</div><div><b>${daysActive}</b>day${daysActive === 1 ? '' : 's'} active</div></div></div>
+  ${groups.slice(0, show).map(g => `<div class="card"><h2>${dayLabel(g.key)}</h2><ul class="list">${g.list.map(e => histRow(e)).join('')}</ul></div>`).join('')}
+  <div class="row" style="margin:1rem 0">${groups.length > show ? `<button class="btn" data-act="histmore">Show older days</button>` : ''}<span class="sp"></span>
+    <button class="btn danger" data-act="histclear">Clear ${esc(p.name)}'s history</button></div>`;
+}
+
+/* ======================================================================
+   CALENDAR — playlists on specific dates, or repeating every weekday.
+   ====================================================================== */
+S.calMonth = (d => new Date(d.getFullYear(), d.getMonth(), 1))(new Date());
+S.calDay = localKey(new Date());
+function plansFor(p, key){
+  const dk = DAYS[keyToDate(key).getDay()][0], out = [];
+  for (const id of p.dated?.[key] || []){ const pl = p.playlists.find(x => x.id === id); if (pl) out.push({ pl, kind: 'date' }); }
+  for (const id of p.schedule?.[dk] || []){ const pl = p.playlists.find(x => x.id === id); if (pl && !out.some(o => o.pl.id === id)) out.push({ pl, kind: 'weekly' }); }
+  return out;
+}
+function viewCalendar(p){
+  const m = S.calMonth, y = m.getFullYear(), mo = m.getMonth();
+  const startDow = new Date(y, mo, 1).getDay(), nDays = new Date(y, mo + 1, 0).getDate(), today = localKey(new Date());
+  const played = {}; for (const e of allHistory(p)){ const k = localKey(new Date(e.at)); played[k] = (played[k] || 0) + 1; }
+  const cells = [];
+  for (let i = 0; i < startDow; i++) cells.push('<span class="calcell blank" aria-hidden="true"></span>');
+  for (let d = 1; d <= nDays; d++){
+    const key = localKey(new Date(y, mo, d)), plans = plansFor(p, key);
+    const label = `${keyToDate(key).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}: ${plans.length ? plans.map(x => x.pl.name).join(', ') : 'nothing planned'}${played[key] ? `, ${played[key]} played` : ''}`;
+    cells.push(`<button class="calcell ${key === today ? 'today' : ''} ${key < today ? 'past' : ''} ${key === S.calDay ? 'sel' : ''}" data-act="calday" data-key="${key}" aria-label="${esc(label)}" aria-pressed="${key === S.calDay}">
+      <span class="dnum">${d}</span>
+      ${plans.slice(0, 2).map(x => `<span class="pchip ${x.kind === 'weekly' ? 'wk' : ''}">${esc(x.pl.name)}</span>`).join('')}${plans.length > 2 ? `<span class="pmore">+${plans.length - 2} more</span>` : ''}
+      ${played[key] ? `<span class="played">✓ ${played[key]}</span>` : ''}</button>`);
+  }
+  return `<div class="card"><h2>Calendar · ${esc(p.name)}</h2>
+    <div class="calhead"><button class="iconbtn" data-act="calnav" data-dir="-1" aria-label="Previous month" style="transform:rotate(90deg)">${ICONS.down}</button>
+      <span class="mname">${m.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</span>
+      <button class="btn sm" data-act="calnav" data-dir="0">Today</button>
+      <button class="iconbtn" data-act="calnav" data-dir="1" aria-label="Next month" style="transform:rotate(-90deg)">${ICONS.down}</button></div>
+    <div class="calgrid">${DAYS.map(([, n]) => `<span class="caldow">${n.slice(0, 3)}</span>`).join('')}${cells.join('')}</div>
+    <p class="mute" style="font-size:.8rem;margin:.6rem 0 0">Solid = that date only · dashed = repeats weekly · ✓ = played that day. Tap a day to plan it.</p>
+    ${dayPanel(p, S.calDay)}</div>`;
+}
+function dayPanel(p, key){
+  const d = keyToDate(key), [dk, dn] = DAYS[d.getDay()], plans = plansFor(p, key);
+  const playedThatDay = allHistory(p).filter(e => localKey(new Date(e.at)) === key).reverse();
+  return `<div class="daypanel"><h3>${d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</h3>
+    <ul class="list">${plans.map(({ pl, kind }) => `<li><span class="t"><b>${esc(pl.name)}</b> <span class="mute">· ${kind === 'weekly' ? `every ${dn}` : 'this day only'} · ${pl.items.length} item${pl.items.length === 1 ? '' : 's'}</span></span>
+      <button class="btn sm" data-act="playpl" data-id="${pl.id}">▶</button>
+      <button class="btn sm danger" data-act="calrm" data-kind="${kind}" data-id="${pl.id}" title="${kind === 'weekly' ? `Stop repeating every ${dn}` : 'Remove from this day'}">✕</button></li>`).join('') || '<li class="mute">Nothing planned.</li>'}</ul>
+    ${p.playlists.length ? `<div class="row" style="margin-top:.6rem"><select id="cal-pl" aria-label="Playlist to add">${p.playlists.map(pl => `<option value="${pl.id}">${esc(pl.name)}</option>`).join('')}</select>
+      <label class="cb"><input type="checkbox" id="cal-rep">Every ${dn}</label>
+      <button class="btn pri" data-act="caladd">＋ Add</button></div>`
+      : `<p class="mute">Make a playlist first (above), then add it to days here.</p>`}
+    ${playedThatDay.length ? `<h2 style="margin-top:1rem">Played</h2><ul class="list">${playedThatDay.map(e => histRow(e)).join('')}</ul>` : ''}</div>`;
+}
+
 /* ---------- events ---------- */
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
@@ -1320,7 +1533,7 @@ document.addEventListener('click', async e => {
     case 'createprofile': {
       const name = $('#newprof').value.trim(); if (!name) return toast('Type a name first');
       const id = uid();
-      if (await saveCfg(cfg => { cfg.profiles.push({ id, name, playlists: [], schedule: {} }); })) pickProfile(id);
+      if (await saveCfg(cfg => { cfg.profiles.push({ id, name, playlists: [], schedule: {}, dated: {}, history: [] }); })) pickProfile(id);
       break;
     }
     case 'switchprofile': stopPlayer(); showGate('profile'); break;
@@ -1337,6 +1550,12 @@ document.addEventListener('click', async e => {
     case 'catf': { const k = b.dataset.k; S.catF.has(k) ? S.catF.delete(k) : S.catF.add(k); render(); break; }
     case 'catnotes': S.showNotes = !S.showNotes; store.set('fp_shownotes', S.showNotes ? '1' : null); S.openNotes.clear(); render(); break;
     case 'catedit': S.catEdit = !S.catEdit; if (S.catEdit){ S.catSel = false; S.sel = []; } render(); break;
+    case 'sectoggle': {
+      const id = b.dataset.sec;
+      S.collapsed.has(id) ? S.collapsed.delete(id) : S.collapsed.add(id);
+      store.set('fp_collapsed', JSON.stringify([...S.collapsed]));
+      rerenderCatalog(); break;
+    }
     case 'catsel': S.catSel = !S.catSel; S.sel = []; if (S.catSel) S.catEdit = false; render(); break;
     case 'cisel': {
       const li = b.closest('li.ci'), key = { sec: li.dataset.sec, ci: li.dataset.ci };
@@ -1345,6 +1564,47 @@ document.addEventListener('click', async e => {
       rerenderCatalog(); break;
     }
     case 'selintros': S.selIntros = b.checked; break;
+    /* history */
+    case 'histplay': {
+      const ref = b.dataset.ref, [type, ...rest] = ref.split(':'), id = rest.join(':');
+      const it = itemByRef(ref) || { type, id, title: b.dataset.title, num: '↗', virtual: true, media: 'video' };
+      if (it.missing) return toast('That file is no longer in the Drive folder');
+      startQueue([it.virtual ? it : asQueued(it, it.title)], b.dataset.title); break;
+    }
+    case 'histmore': S.histDays = (S.histDays || 14) + 30; render(); break;
+    case 'histclear': {
+      if (!confirm(`Clear all of ${p.name}'s play history? This can't be undone.`)) return;
+      store.set(pendKey(), null);
+      if (await saveCfg(cfg => { const pr = curProfile(cfg); if (pr) pr.history = []; })) toast('History cleared');
+      break;
+    }
+    /* calendar */
+    case 'calnav': {
+      const dir = Number(b.dataset.dir), m = S.calMonth;
+      if (dir === 0){ const t = new Date(); S.calMonth = new Date(t.getFullYear(), t.getMonth(), 1); S.calDay = localKey(t); }
+      else S.calMonth = new Date(m.getFullYear(), m.getMonth() + dir, 1);
+      render(); break;
+    }
+    case 'calday': S.calDay = b.dataset.key; render(); break;
+    case 'caladd': {
+      const id = $('#cal-pl').value, weekly = $('#cal-rep').checked, key = S.calDay, dk = DAYS[keyToDate(key).getDay()][0];
+      const ok = await saveCfg(cfg => {
+        const pr = curProfile(cfg); if (!pr) return;
+        const arr = weekly ? (pr.schedule[dk] ||= []) : (pr.dated[key] ||= []);
+        if (!arr.includes(id)) arr.push(id);
+      });
+      if (ok) toast(weekly ? `Added — repeats every ${DAYS[keyToDate(key).getDay()][1]}` : 'Added to this day');
+      break;
+    }
+    case 'calrm': {
+      const id = b.dataset.id, key = S.calDay, [dk, dn] = DAYS[keyToDate(key).getDay()];
+      if (b.dataset.kind === 'weekly' && !confirm(`Stop repeating this playlist every ${dn}? (It's removed from all ${dn}s.)`)) return;
+      saveCfg(cfg => {
+        const pr = curProfile(cfg); if (!pr) return;
+        if (b.dataset.kind === 'weekly') pr.schedule[dk] = (pr.schedule[dk] || []).filter(x => x !== id);
+        else { pr.dated[key] = (pr.dated[key] || []).filter(x => x !== id); if (!pr.dated[key].length) delete pr.dated[key]; }
+      }); break;
+    }
     case 'autonext': {
       const it = curItem(); if (!it?.dur) return;
       clearAutoNext(); S.autoNextAt = Date.now() + it.dur + 3000;
@@ -1523,7 +1783,8 @@ document.addEventListener('click', async e => {
       if (await saveCfg(cfg => {
         const pr = curProfile(cfg); if (!pr) return;
         pr.playlists = pr.playlists.filter(x => x.id !== ed.id);
-        for (const k in pr.schedule) if (pr.schedule[k] === ed.id) delete pr.schedule[k];
+        for (const k in pr.schedule) pr.schedule[k] = pr.schedule[k].filter(x => x !== ed.id);
+        for (const k in pr.dated){ pr.dated[k] = pr.dated[k].filter(x => x !== ed.id); if (!pr.dated[k].length) delete pr.dated[k]; }
       })){ S.editing = null; render(); }
       break;
     }
