@@ -385,7 +385,11 @@ function sendTokenToSW(){ navigator.serviceWorker?.controller?.postMessage({ typ
 /* ---------- service worker (streams Drive videos with your sign-in) ---------- */
 async function setupSW(){
   navigator.serviceWorker.addEventListener('message', e => {
-    if (e.data?.type === 'auth-expired'){ S.tokenExp = 0; showAuthBanner(); }
+    if (e.data?.type === 'auth-expired'){
+      S.tokenExp = 0;
+      if (curItem()?.type === 'drive' && !$('#vid').hidden && !S.resumeAt) S.resumeAt = $('#vid').currentTime || 0;
+      showAuthBanner();
+    }
   });
   navigator.serviceWorker.addEventListener('controllerchange', sendTokenToSW);
   await navigator.serviceWorker.register('sw.js');
@@ -693,9 +697,11 @@ function renderDriveNote(it){
   const timer = !more || !it.dur ? ''
     : S.autoNextAt ? `<button class="btn sm" data-act="autonextcancel">⏱ Next in ${fmtDur(S.autoNextAt - Date.now())} · Cancel</button>`
     : `<button class="btn sm" data-act="autonext" title="Press after you start the video">⏱ Auto-next after ${fmtDur(it.dur)}</button>`;
-  n.innerHTML = `<span><b>Playing in Google Drive's viewer</b> — downloads are off for this file, so press play inside the video.${more ? ' It can\'t tell the app when it ends: tap Next when done.' : ''}</span>
+  const why = it.preferViewer || S.chosenViewer?.has(it.id) ? 'chosen for this file because it kept getting stuck here' : 'downloads are off for this file';
+  n.innerHTML = `<span><b>Playing in Google Drive's player</b> — ${why}, so press play inside the video.${more ? ' It can\'t tell the app when it ends: tap Next when done.' : ''}</span>
     ${more ? '<button class="btn sm pri" data-act="next">Next ⏭</button>' : ''}${timer}
-    <a class="btn" href="https://drive.google.com/file/d/${encodeURIComponent(it.id)}/view" target="_blank" rel="noopener">Open in Drive ↗</a>`;
+    <a class="btn" href="https://drive.google.com/file/d/${encodeURIComponent(it.id)}/view" target="_blank" rel="noopener">Open in Drive ↗</a>
+    ${!it.noDownload && (it.preferViewer || S.chosenViewer?.has(it.id)) ? '<button class="btn sm" data-act="undrive">Use this app\'s player again</button>' : ''}`;
   n.hidden = false;
 }
 async function playDriveViewer(it){
@@ -719,7 +725,12 @@ function playCurrent(){
   const vid = $('#vid'), ytw = $('#ytwrap');
   hideDriveViewer();
   beginSession(it);
-  if (it.type === 'drive' && (it.noDownload || S.viewOnly.has(it.id))){
+  S.stall = { key: it.id, tries: 0 }; S.stallT0 = 0; S.lastPos = -1;
+  // Sign-in lasts ~1 hour and renewing needs a tap. If it runs low, renew now while this tap counts,
+  // so a long meditation doesn't stop halfway.
+  if (it.type === 'drive' && navigator.userActivation?.isActive && tokenClient && S.token && !pendingTok && S.tokenExp - Date.now() < 30 * 60e3)
+    requestToken('').catch(() => {});
+  if (it.type === 'drive' && (it.noDownload || it.preferViewer || S.viewOnly.has(it.id))){
     try { ytPlayer?.stopVideo?.(); } catch {}
     ytw.hidden = true;
     playDriveViewer(it); renderPlayer(); return;
@@ -738,7 +749,7 @@ function playCurrent(){
         } catch {}
         if (curItem() !== it) return;
       }
-      vid.src = `drive-stream/${encodeURIComponent(it.id)}${it.size ? `?size=${it.size}` : ''}`;
+      vid.src = streamUrl(it);
       // Browsers may block auto-start after arriving from a link; offer a tap instead.
       vid.play().then(() => showTapToPlay(false)).catch(e => { if (e.name === 'NotAllowedError') showTapToPlay(true); });
     };
@@ -751,11 +762,44 @@ function playCurrent(){
   }
   renderPlayer();
 }
+/* ---------- keep Drive streams moving ----------
+   This player streams the original file; Drive's own player streams a lighter version. If the
+   stream stops moving (slow connection, a dropped request, sign-in expired), reconnect from the
+   same spot. If a file keeps sticking, offer Drive's own player for it. */
+const streamUrl = it => `drive-stream/${encodeURIComponent(it.id)}?${it.size ? `size=${it.size}&` : ''}r=${Date.now().toString(36)}`;
+function resumeStream(it, pos){
+  const vid = $('#vid');
+  S.resumeAt = pos > 0.5 ? pos : 0;
+  vid.src = streamUrl(it);
+  vid.play().catch(() => {});
+}
+function onStall(it, why){
+  const vid = $('#vid'), pos = S.resumeAt || vid.currentTime || 0;
+  if (!tokenValid()){
+    S.resumeAt = pos;
+    showDiag(`Paused at ${fmtDur(pos * 1000)}: your Google sign-in expired. Tap “Sign in again” at the top to continue from here.`);
+    showAuthBanner(); return;
+  }
+  if (S.stall?.key !== it.id) S.stall = { key: it.id, tries: 0 };
+  S.stall.tries++;
+  if (S.stall.tries <= 3){
+    showDiag(`The video got stuck ${why} — reconnecting from ${fmtDur(pos * 1000)}…`);
+    resumeStream(it, pos);
+  } else showDiag(`Still stuck after 3 reconnects at ${fmtDur(pos * 1000)}.`);
+  if (S.stall.tries >= 2) renderStallNote(it);
+}
+function renderStallNote(it){
+  const n = $('#drvnote');
+  n.innerHTML = `<span><b>This video keeps getting stuck here.</b> Google Drive's own player streams a lighter version that usually copes better with a slow connection (it can't auto-advance to the next item).</span>
+    <button class="btn sm pri" data-act="usedrive">Play in Drive's player</button>
+    ${it.virtual ? '' : '<button class="btn sm" data-act="alwaysdrive">Always use Drive\'s player for this file</button>'}`;
+  n.hidden = false;
+}
 function next(){
   if (!S.queue.length) return;
   if (S.qi + 1 >= S.queue.length){
     if (S.loop) S.qi = 0;
-    else { toast('Finished'); renderPlayer(); return; }
+    else { endSession(); toast('Finished'); renderPlayer(); return; }
   } else S.qi++;
   playCurrent();
 }
@@ -824,8 +868,10 @@ function setupVideoEvents(){
   vid.addEventListener('error', async () => {
     const it = curItem();
     if (it?.type !== 'drive' || !vid.getAttribute('src')) return;
-    if (!tokenValid()){ S.resumeAt = vid.currentTime || 0; showAuthBanner(); return; }
     const code = vid.error?.code;
+    if (!tokenValid()){ onStall(it, ''); return; }
+    // A network error, or a failure after it had been playing fine, is a dropped connection — reconnect.
+    if ((code === 2 || (S.lastPos > 0 && code !== 3)) && (S.stall?.key !== it.id || S.stall.tries < 3)){ onStall(it, '(connection dropped)'); return; }
     const more = S.qi + 1 < S.queue.length || S.loop;
     showDiag(`#${it.num} couldn't play — checking why…`);
     const d = await diagnoseDrive(it, code);
@@ -836,10 +882,19 @@ function setupVideoEvents(){
     if (more) setTimeout(next, 2500);
   });
   vid.addEventListener('playing', () => showDiag(''));
+  setInterval(() => {   // watchdog: playing but the position hasn't moved for 12 s → stuck
+    const it = curItem();
+    if (!it || it.type !== 'drive' || vid.hidden || !vid.getAttribute('src') || vid.paused || vid.ended){ S.stallT0 = 0; return; }
+    if (vid.currentTime !== S.lastPos){ S.lastPos = vid.currentTime; S.stallT0 = 0; return; }
+    S.stallT0 ||= Date.now();
+    if (Date.now() - S.stallT0 > 12000){ S.stallT0 = 0; onStall(it, 'while loading'); }
+  }, 2000);
   vid.addEventListener('loadedmetadata', () => {
     if (S.resumeAt){ vid.currentTime = S.resumeAt; S.resumeAt = 0; }
     if (S.sess && !S.sess.dur && isFinite(vid.duration)) S.sess.dur = Math.round(vid.duration);
   });
+  setInterval(() => { if (S.sess) checkpointSession(); }, 10000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') checkpointSession(); });
   setInterval(() => {   // YouTube: count seconds while its player reports "playing"
     const x = S.sess;
     if (!x || curItem()?.type !== 'youtube' || ytPlayer?.getPlayerState?.() !== 1) return;
@@ -1031,9 +1086,10 @@ async function afterSignIn(){
   if (!curProfile()) return showGate('profile');
   showApp();
   runPendingPlay();
+  recoverLiveSession();
   syncFolder(true).then(ensureCatalog).then(() => scheduleHistFlush(500));
 }
-function pickProfile(id){ S.profileId = id; store.set('fp_profile_' + S.folderId, id); S.editing = null; showApp(); runPendingPlay(); (S.lastScan ? Promise.resolve() : syncFolder(true)).then(ensureCatalog).then(() => scheduleHistFlush(500)); }
+function pickProfile(id){ S.profileId = id; store.set('fp_profile_' + S.folderId, id); S.editing = null; showApp(); runPendingPlay(); recoverLiveSession(); (S.lastScan ? Promise.resolve() : syncFolder(true)).then(ensureCatalog).then(() => scheduleHistFlush(500)); }
 
 /* ======================================================================
    CATALOG — shared by the whole family, saved in player-config.json.
@@ -1389,24 +1445,57 @@ const localKey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,
 const keyToDate = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
 const pendKey = (folder = S.folderId, prof = S.profileId) => `fp_hist_${folder}_${prof}`;
 function readPending(key = pendKey()){ try { return JSON.parse(store.get(key) || '[]'); } catch { return []; } }
+const liveKey = (folder = S.folderId, prof = S.profileId) => `fp_histlive_${folder}_${prof}`;
 function beginSession(it){
   endSession();
   if (!it || !S.profileId) return;
-  S.sess = { ref: refOf(it), title: it.title, num: it.virtual ? null : it.num, from: S.qLabel || '', start: Date.now(),
-    heard: 0, lastT: null, done: false, viewer: false, dur: it.dur ? Math.round(it.dur / 1000) : null, prof: S.profileId, folder: S.folderId };
+  S.sess = { id: uid(), ref: refOf(it), type: it.type, itemId: it.id, title: it.title, num: it.virtual ? null : it.num, from: S.qLabel || '',
+    start: Date.now(), heard: 0, lastT: null, done: false, viewer: false, dur: it.dur ? Math.round(it.dur / 1000) : null, prof: S.profileId, folder: S.folderId };
 }
-function endSession(){
-  const x = S.sess; S.sess = null;
-  if (!x) return;
-  const heard = Math.round(x.heard / 1000);
-  if (!x.done && !x.viewer && heard < 5) return;   // ignore accidental taps and quick skips
-  const e = { id: uid(), at: new Date(x.start).toISOString(), ref: x.ref, title: x.title, num: x.num,
+/* Seconds actually played. For Drive files the browser's own record of played ranges is used too,
+   because timeupdate events can be throttled (screen locked, tab in background). */
+function heardSeconds(x){
+  let ms = x.heard;
+  const v = $('#vid');
+  if (x.type === 'drive' && (v.getAttribute('src') || '').includes(encodeURIComponent(x.itemId))){
+    let t = 0; for (let i = 0; i < v.played.length; i++) t += v.played.end(i) - v.played.start(i);
+    ms = Math.max(ms, t * 1000);
+  }
+  return Math.round(ms / 1000);
+}
+function sessEntry(x){
+  const heard = heardSeconds(x);
+  if (!x.done && !x.viewer && heard < 5) return null;   // ignore accidental taps and quick skips
+  const e = { id: x.id, at: new Date(x.start).toISOString(), ref: x.ref, title: x.title, num: x.num,
     heard: x.viewer ? null : heard, dur: x.dur || null, done: x.done };
   if (x.viewer) e.via = 'viewer';
   if (x.from && x.from !== x.title) e.from = x.from;
+  return e;
+}
+/* Save the in-progress play every few seconds, so it survives the browser being closed
+   in the background (phones do this without warning). */
+function checkpointSession(){
+  const x = S.sess; if (!x) return;
+  const e = sessEntry(x);
+  if (e) store.set(liveKey(x.folder, x.prof), JSON.stringify(e));
+}
+function recoverLiveSession(){
+  let e = null; try { e = JSON.parse(store.get(liveKey()) || 'null'); } catch {}
+  if (!e || e.id === S.sess?.id) return;
+  store.set(liveKey(), null);
+  const key = pendKey();
+  if (!readPending(key).some(x => x.id === e.id)) store.set(key, JSON.stringify([...readPending(key), e].slice(-500)));
+}
+function endSession(){
+  const x = S.sess; if (!x) return;
+  const e = sessEntry(x);
+  S.sess = null;
+  store.set(liveKey(x.folder, x.prof), null);
+  if (!e) return;
   const key = pendKey(x.folder, x.prof);
-  store.set(key, JSON.stringify([...readPending(key), e].slice(-500)));
+  store.set(key, JSON.stringify([...readPending(key).filter(y => y.id !== e.id), e].slice(-500)));
   scheduleHistFlush();
+  if (S.tab === 'history' || (S.tab === 'playlists' && !S.editing)) render();
 }
 function scheduleHistFlush(delay = 4000){ clearTimeout(S.histT); S.histT = setTimeout(flushHistory, delay); }
 async function flushHistory(){
@@ -1425,8 +1514,10 @@ async function flushHistory(){
   }
 }
 function allHistory(p){
-  const seen = new Set();
-  return [...(p.id === S.profileId ? readPending() : []), ...(p.history || [])]
+  const seen = new Set(), mine = p.id === S.profileId;
+  const live = mine && S.sess && S.sess.prof === p.id ? sessEntry(S.sess) : null;   // what's playing right now
+  if (live) live.live = true;
+  return [...(live ? [live] : []), ...(mine ? readPending() : []), ...(p.history || [])]
     .filter(e => !seen.has(e.id) && seen.add(e.id)).sort((a, b) => b.at.localeCompare(a.at));
 }
 const fmtMin = sec => sec == null ? '' : sec < 60 ? `${sec} s` : `${Math.round(sec / 60)} min`;
@@ -1440,7 +1531,8 @@ function dayLabel(key){
   return days === 0 ? 'Today' : days === 1 ? 'Yesterday' : keyToDate(key).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
 }
 function histStatus(e){
-  const how = e.done ? '<span class="ok">✓ finished</span>' : e.via === 'viewer' ? 'opened in Drive\'s viewer' : `${fmtMin(e.heard)}${e.dur ? ` of ${fmtMin(e.dur)}` : ''}`;
+  const how = e.live ? `<span class="ok">▶ playing now</span>${e.heard != null ? ` · ${fmtMin(e.heard)} so far` : ''}`
+    : e.done ? '<span class="ok">✓ finished</span>' : e.via === 'viewer' ? 'opened in Drive\'s viewer' : `${fmtMin(e.heard)}${e.dur ? ` of ${fmtMin(e.dur)}` : ''}`;
   return how + (e.from ? ` · from ${esc(e.from)}` : '');
 }
 function histRow(e, withTime = true){
@@ -1519,7 +1611,23 @@ document.addEventListener('click', async e => {
     case 'signin':
       requestToken('').then(afterSignIn).catch(err => toast(err.message, 4500)); break;
     case 'reauth':
-      requestToken('').then(() => { if (curItem()?.type === 'drive' && S.resumeAt) playCurrent(); }).catch(err => toast(err.message, 4500)); break;
+      requestToken('').then(() => {
+        const it = curItem();
+        if (it?.type === 'drive' && !$('#vid').hidden && (S.resumeAt || $('#vid').error)){ showDiag(''); resumeStream(it, S.resumeAt || $('#vid').currentTime); }
+      }).catch(err => toast(err.message, 4500)); break;
+    case 'usedrive': case 'alwaysdrive': {
+      const it = curItem(); if (it?.type !== 'drive') return;
+      (S.chosenViewer ||= new Set()).add(it.id); showDiag('');
+      if (a === 'alwaysdrive'){ const ref = refOf(it); saveCfg(cfg => { const x = cfg.items.find(i => refOf(i) === ref); if (x) x.preferViewer = true; }); it.preferViewer = true; }
+      playDriveViewer(it); break;
+    }
+    case 'undrive': {
+      const it = curItem(); if (!it) return;
+      S.chosenViewer?.delete(it.id); S.viewOnly.delete(it.id); delete it.preferViewer;
+      const ref = refOf(it);
+      await saveCfg(cfg => { const x = cfg.items.find(i => refOf(i) === ref); if (x) delete x.preferViewer; });
+      const fresh = itemByRef(ref) || it; S.queue[S.qi] = fresh; playCurrent(); break;
+    }
     case 'setfolder': {
       const id = parseFolderId($('#folderin').value);
       if (!id) return toast('Paste the folder\'s link from Google Drive');
