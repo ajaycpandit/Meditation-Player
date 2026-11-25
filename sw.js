@@ -1,13 +1,20 @@
 /* Family Player service worker.
    Streams Google Drive videos to the <video> player by adding your sign-in
    token to each request (a plain <video src> can't send it). Supports seeking
-   by passing the browser's Range requests straight through to Drive. */
+   by passing the browser's Range requests straight through to Drive.
+   It also keeps a copy of the page itself, so the player opens with no
+   internet (offline mode plays files saved on this device). */
 
 const TOKEN_CACHE = 'fp-token';
 const TOKEN_KEY = new URL('__fp_token', self.registration.scope).href;
 let token = null;
+const SHELL_CACHE = 'fp-shell-v1';
+const SHELL_URL = new URL('index.html', self.registration.scope).href;
 
-self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('install', e => {
+  self.skipWaiting();
+  e.waitUntil(caches.open(SHELL_CACHE).then(c => c.add(SHELL_URL)).catch(() => {}));
+});
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
 
 self.addEventListener('message', e => {
@@ -37,10 +44,25 @@ async function getToken() {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (url.origin !== self.location.origin) return;
+  // Only the player page itself (scope/ or scope/index.html) is kept for offline use.
+  if (e.request.mode === 'navigate' && (url.href.split(/[?#]/)[0] === self.registration.scope || url.href.split(/[?#]/)[0] === SHELL_URL)) { e.respondWith(page(e.request)); return; }
   const m = url.pathname.match(/\/drive-stream\/([\w-]+)$/);
   if (!m) return;
   e.respondWith(stream(m[1], Number(url.searchParams.get('size')) || 0, e.request));
 });
+
+// Opening the page: always try the network first (so updates arrive), keep the
+// latest copy, and fall back to it when there's no connection.
+async function page(req) {
+  const c = await caches.open(SHELL_CACHE);
+  try {
+    const r = await fetch(req);
+    if (r.ok && (r.headers.get('Content-Type') || '').includes('text/html')) c.put(SHELL_URL, r.clone()).catch(() => {});
+    return r;
+  } catch (err) {
+    return (await c.match(SHELL_URL)) || new Response('<h1>Offline</h1><p>Open the player once while online first.</p>', { status: 503, headers: { 'Content-Type': 'text/html' } });
+  }
+}
 
 async function stream(id, size, req) {
   const t = await getToken();

@@ -164,6 +164,8 @@ code{background:var(--chip);padding:.05rem .35rem;border-radius:6px}
 .drvnote{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .6rem;font-size:.9rem;color:var(--mute);border-top:1px solid var(--line)}
 .drvnote b{color:var(--ink)}
 .drvnote a.btn{text-decoration:none;display:inline-flex;align-items:center;font-size:.85rem;padding:.3rem .75rem;border-radius:999px;border:1px solid var(--line);background:var(--chip);color:var(--ink)}
+.offchip{color:var(--warn);border-color:var(--warn)}
+#localpick,#localre{display:none}
 /* history */
 .lastp{color:var(--teal)}
 .hrow .htime{flex:0 0 4.6rem;font-size:.82rem;color:var(--mute);font-variant-numeric:tabular-nums}
@@ -232,7 +234,7 @@ legend{font-size:.85rem;color:var(--mute);font-weight:600;padding:0;margin-botto
 <div id="gate"></div>
 
 <div id="app" hidden>
-  <header class="top"><h1><span class="star">✦</span>Family Player</h1><button class="chip" id="profchip" data-act="switchprofile"></button></header>
+  <header class="top"><h1><span class="star">✦</span>Family Player</h1><button class="chip offchip" id="offchip" data-act="reconnect" hidden title="Only files saved on this device can play. Tap to reconnect.">● Offline</button><button class="chip" id="profchip" data-act="switchprofile"></button></header>
   <main>
     <section id="player" hidden>
       <div id="stage">
@@ -524,13 +526,18 @@ async function writeConfig(id, obj){
    so two family members editing at different times never overwrite each other. */
 let saving = Promise.resolve();
 function saveCfg(mutator, opts = {}){
+  if (S.offline){
+    S.lastSaveError = "you're offline";
+    if (!opts.quiet) toast("You're offline — this change can't be saved until you're back online", 4500);
+    return Promise.resolve(null);
+  }
   const run = saving.then(async () => {
     if (!tokenValid() && tokenClient) await requestToken('');   // sign-in lasts ~1 hour; renew it before saving
     const latest = await readConfig(S.cfgId);
     const res = mutator(latest);
     latest.updatedAt = new Date().toISOString();
     await writeConfig(S.cfgId, latest);
-    S.cfg = latest; render();
+    S.cfg = latest; cacheCfg(); render();
     return res === undefined ? true : res;
   });
   saving = run.catch(() => {});
@@ -659,12 +666,20 @@ const curItem = () => S.queue[S.qi];
 
 function playQueue(nums, label){
   const items = [], skipped = [];
-  nums.forEach(n => { const it = itemByNum(n); if (it && !it.missing) items.push(it); else skipped.push(n); });
+  nums.forEach(n => { const it = itemByNum(n); if (it && (it.type === 'local' || !it.missing)) items.push(it); else skipped.push(n); });
   if (skipped.length) toast(`Skipped #${skipped.join(', #')} (not in library)`, 4000);
   if (!items.length) return;
   startQueue(items, label);
 }
 function startQueue(items, label){
+  const ok = items.filter(it => it.virtual ? !S.offline : playable(it));
+  if (ok.length < items.length){
+    const off = items.filter(it => !ok.includes(it));
+    const elsewhere = off.find(it => it.type === 'local' && it.deviceId !== DEVICE_ID);
+    toast(S.offline ? `Offline — skipped ${off.length} that need${off.length === 1 ? 's' : ''} the internet` :
+      elsewhere ? `Skipped ${off.length}: saved on ${elsewhere.deviceName || 'another device'} only` : `Skipped ${off.length} not available on this device`, 5000);
+  }
+  items = ok;
   if (!items.length) return;
   S.queue = items; S.qi = 0; S.qLabel = label;
   $('#player').hidden = false;
@@ -730,6 +745,24 @@ function playCurrent(){
   // so a long meditation doesn't stop halfway.
   if (it.type === 'drive' && navigator.userActivation?.isActive && tokenClient && S.token && !pendingTok && S.tokenExp - Date.now() < 30 * 60e3)
     requestToken('').catch(() => {});
+  if (it.type === 'local'){
+    try { ytPlayer?.stopVideo?.(); } catch {}
+    ytw.hidden = true; vid.hidden = false; showTapToPlay(false);
+    showAudioArt(it.media === 'audio' ? it : null);
+    idbGet('files', it.id).then(blob => {
+      if (curItem() !== it) return;
+      if (!blob){
+        S.localIds.delete(it.id);
+        showDiag(`#${it.num} isn't saved on this device any more (the browser cleared it). Add it again from Library → Files on this device.`);
+        if (S.qi + 1 < S.queue.length) setTimeout(next, 3000);
+        return;
+      }
+      setLocalURL(URL.createObjectURL(blob));
+      vid.src = S.localURL;
+      vid.play().then(() => showTapToPlay(false)).catch(e => { if (e.name === 'NotAllowedError') showTapToPlay(true); });
+    }).catch(e => showDiag(`Couldn't read #${it.num} from this device: ${e.message}`));
+    renderPlayer(); return;
+  }
   if (it.type === 'drive' && (it.noDownload || it.preferViewer || S.viewOnly.has(it.id))){
     try { ytPlayer?.stopVideo?.(); } catch {}
     ytw.hidden = true;
@@ -857,9 +890,9 @@ function toggleFull(){
 }
 function setupVideoEvents(){
   const vid = $('#vid');
-  vid.addEventListener('ended', () => { if (curItem()?.type === 'drive'){ if (S.sess) S.sess.done = true; next(); } });
+  vid.addEventListener('ended', () => { if (['drive', 'local'].includes(curItem()?.type)){ if (S.sess) S.sess.done = true; next(); } });
   vid.addEventListener('timeupdate', () => {   // count only time actually played (not seeks)
-    const x = S.sess; if (!x || curItem()?.type !== 'drive') return;
+    const x = S.sess; if (!x || !['drive', 'local'].includes(curItem()?.type)) return;
     const t = vid.currentTime;
     if (x.lastT != null){ const d = t - x.lastT; if (d > 0 && d < 2) x.heard += d * 1000; }
     x.lastT = t;
@@ -867,6 +900,12 @@ function setupVideoEvents(){
   vid.addEventListener('seeking', () => { if (S.sess) S.sess.lastT = null; });
   vid.addEventListener('error', async () => {
     const it = curItem();
+    if (it?.type === 'local' && vid.getAttribute('src')){
+      const more = S.qi + 1 < S.queue.length || S.loop;
+      showDiag(`#${it.num} "${it.title}" couldn't play on this device — this browser may not support the file's format.`);
+      if (more) setTimeout(next, 2500);
+      return;
+    }
     if (it?.type !== 'drive' || !vid.getAttribute('src')) return;
     const code = vid.error?.code;
     if (!tokenValid()){ onStall(it, ''); return; }
@@ -911,7 +950,9 @@ function showGate(kind, msg){
   const H = {
     setup: `<h2>One setup step left</h2><p>Open <code>index.html</code> and paste your Google OAuth Client ID into <code>CLIENT_ID</code>. The README walks through it.</p>`,
     nosw: `<h2>Browser not supported</h2><p>This browser can't stream Drive videos (no service worker support). Try Chrome, Edge, Firefox or Safari, and make sure the page is opened over https.</p>`,
-    signin: `<h2>Family Player</h2><p class="mute">Sign in with the Google account that has access to the family video folder.</p><p><button class="btn pri" data-act="signin">Sign in with Google</button></p>`,
+    signin: `<h2>Family Player</h2><p class="mute">Sign in with the Google account that has access to the family video folder.</p><p><button class="btn pri" data-act="signin">Sign in with Google</button>
+      ${store.get('fp_hascache') ? ' <button class="btn" data-act="gooffline">Use offline</button>' : ''}</p>`,
+    offlinenone: `<h2>You're offline</h2><p class="mute">The player needs to be opened once while online on this device before it can work offline.</p><p><button class="btn pri" onclick="location.reload()">Try again</button></p>`,
     folder: `<h2>Choose the video folder</h2><p class="mute">Paste the link to the Google Drive folder that holds your .mp4 files.</p><div class="row"><input id="folderin" placeholder="https://drive.google.com/drive/folders/…"><button class="btn pri" data-act="setfolder">Use folder</button></div>`,
     loading: `<p class="mute">Loading your library…</p>`,
     swfail: `<h2>Drive playback can't start</h2><p class="warn">${esc(msg)}</p><p class="mute">If the message mentions 404, upload <code>sw.js</code> next to <code>index.html</code>.</p><p><button class="btn pri" onclick="location.reload()">Reload</button></p>`,
@@ -924,14 +965,22 @@ function showGate(kind, msg){
 }
 function showApp(){ $('#gate').hidden = true; $('#app').hidden = false; render(); }
 
+function srcLabel(it){
+  if (it.type === 'youtube') return 'YouTube';
+  if (it.type === 'local') return it.deviceId === DEVICE_ID ? 'This device' : esc(it.deviceName || 'Other device');
+  return it.media === 'audio' ? 'Audio' : 'Drive';
+}
 function itemRow(it, actions){
-  return `<li><span class="num">${it.num}</span><span class="src ${it.type === 'youtube' ? 'yt' : ''}">${it.type === 'youtube' ? 'YouTube' : it.media === 'audio' ? 'Audio' : 'Drive'}</span>
-    <span class="t" title="${esc(it.title)}">${esc(it.title)}${it.missing ? ' <span class="warn">(missing from Drive)</span>' : ''}${it.noDownload ? ' <span class="src" title="Downloads are turned off for this file; it plays in Google Drive\'s own viewer">view-only</span>' : ''}</span>${actions}</li>`;
+  const localNote = it.type !== 'local' ? '' : it.deviceId !== DEVICE_ID ? ' <span class="mute">(saved on that device only)</span>'
+    : !S.localIds.has(it.id) ? ` <span class="warn">(copy cleared by the browser)</span> <button class="btn sm" data-act="localre" data-id="${esc(it.id)}">Add it again</button>` : '';
+  return `<li><span class="num">${it.num}</span><span class="src ${it.type === 'youtube' ? 'yt' : ''}">${srcLabel(it)}</span>
+    <span class="t" title="${esc(it.title)}">${esc(it.title)}${localNote}${it.missing ? ' <span class="warn">(missing from Drive)</span>' : ''}${it.noDownload ? ' <span class="src" title="Downloads are turned off for this file; it plays in Google Drive\'s own viewer">view-only</span>' : ''}</span>${actions}</li>`;
 }
 function render(){
   if (!S.cfg || $('#app').hidden) return;
   const p = curProfile();
   $('#profchip').textContent = p ? '👤 ' + p.name : 'Profile';
+  $('#offchip').hidden = !S.offline;
   document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
   const v = $('#view');
   if (S.tab !== 'play') document.body.classList.remove('has-sel');
@@ -961,15 +1010,23 @@ function libRows(){
   const items = S.cfg.items.slice().sort((a, b) => a.num - b.num)
     .filter(i => !f || String(i.num) === f || i.title.toLowerCase().includes(f));
   return items.map(it => itemRow(it, `
-    <button class="btn sm" data-act="playone" data-n="${it.num}" ${it.missing ? 'disabled' : ''} title="Play now">▶</button>
-    <button class="btn sm" data-act="enqueue" data-n="${it.num}" ${it.missing ? 'disabled' : ''} title="Add to queue">＋</button>
+    <button class="btn sm" data-act="playone" data-n="${it.num}" ${playable(it) ? '' : 'disabled'} title="Play now">▶</button>
+    <button class="btn sm" data-act="enqueue" data-n="${it.num}" ${playable(it) ? '' : 'disabled'} title="Add to queue">＋</button>
     <button class="btn sm" data-act="renumber" data-n="${it.num}" title="Change number">#</button>
     <button class="btn sm" data-act="rename" data-n="${it.num}" title="Rename">✎</button>
-    ${it.type === 'youtube' || it.missing ? `<button class="btn sm danger" data-act="remove" data-n="${it.num}" title="Remove">✕</button>` : ''}`)).join('')
+    ${it.type === 'youtube' || it.type === 'local' || it.missing ? `<button class="btn sm danger" data-act="remove" data-n="${it.num}" title="Remove">✕</button>` : ''}`)).join('')
     || '<li class="mute">No videos match.</li>';
 }
 function viewLibrary(){
+  setTimeout(updateStorageInfo);
   return `
+  <div class="card"><h2>Files on this device</h2>
+    <p class="mute" style="margin-top:0">Add videos or audio from this ${/iPhone|iPad|Android/.test(navigator.userAgent) ? 'phone' : 'computer'}${/iPhone|iPad/.test(navigator.userAgent) ? ' — this opens the Files app, including iCloud Drive' : ''}. A copy is kept in the player on this device, so it plays without internet. Each file gets a library number; other family members' devices can't play it.</p>
+    <div class="row"><button class="btn pri" data-act="localpick">＋ Add files from this device</button></div>
+    <input type="file" id="localpick" multiple accept="video/*,audio/*,.mp4,.m4v,.mov,.m4a,.mp3,.aac,.wav,.ogg,.opus,.flac">
+    <input type="file" id="localre" accept="video/*,audio/*,.mp4,.m4v,.mov,.m4a,.mp3,.aac,.wav,.ogg,.opus,.flac">
+    <p class="mute" id="storageinfo" style="font-size:.85rem;margin-bottom:0"></p>
+  </div>
   <div class="card"><h2>Add a YouTube video</h2>
     <div class="row"><input id="yturl" placeholder="Paste a YouTube link"><button class="btn pri" data-act="addyt">Add</button></div>
   </div>
@@ -1041,6 +1098,96 @@ function renderPlayer(){
 
 /* ---------- boot ---------- */
 /* Links into the player: #folder=<id> and/or #play=4 or #play=3,7,12 (used by catalog.html). */
+/* ======================================================================
+   FILES ON THIS DEVICE + OFFLINE MODE
+   Files picked from this phone/computer are copied into the browser's
+   storage (IndexedDB) on this device only. Each gets a normal library
+   number; other devices see it as "on <device> only". A copy of the
+   library/catalog is also kept here so the player opens with no internet.
+   ====================================================================== */
+const idbOpen = (() => { let p; return () => p ||= new Promise((res, rej) => {
+  const r = indexedDB.open('family-player', 1);
+  r.onupgradeneeded = () => { r.result.createObjectStore('files'); r.result.createObjectStore('meta'); };
+  r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+}); })();
+async function idbReq(storeName, mode, fn){
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(storeName, mode), req = fn(tx.objectStore(storeName));
+    tx.oncomplete = () => res(req?.result); tx.onerror = tx.onabort = () => rej(tx.error || new Error('storage error'));
+  });
+}
+const idbGet = (st, k) => idbReq(st, 'readonly', o => o.get(k));
+const idbPut = (st, k, v) => idbReq(st, 'readwrite', o => o.put(v, k));
+const idbDel = (st, k) => idbReq(st, 'readwrite', o => o.delete(k));
+const idbKeys = st => idbReq(st, 'readonly', o => o.getAllKeys());
+const DEVICE_ID = store.get('fp_device') || (() => { const id = 'd' + uid() + uid(); store.set('fp_device', id); return id; })();
+function deviceName(){
+  const saved = store.get('fp_device_name'); if (saved) return saved;
+  const ua = navigator.userAgent, kind = /iPhone/.test(ua) ? 'iPhone' : /iPad|Macintosh.*Mobile/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android phone'
+    : /Macintosh/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'PC' : 'device';
+  const n = `${curProfile()?.name || 'This'}'s ${kind}`; store.set('fp_device_name', n); return n;
+}
+S.localIds = new Set();
+async function loadLocalIndex(){ try { S.localIds = new Set(await idbKeys('files')); } catch { S.localIds = new Set(); } }
+const isHere = it => it?.type === 'local' && it.deviceId === DEVICE_ID && S.localIds.has(it.id);
+function playable(it){
+  if (!it || it.missing) return false;
+  if (it.type === 'local') return isHere(it);
+  return !S.offline;
+}
+function cacheCfg(){ if (S.folderId && S.cfg && !S.offline){ idbPut('meta', 'cfg_' + S.folderId, S.cfg).then(() => store.set('fp_hascache', '1')).catch(() => {}); } }
+async function enterOffline(reason){
+  S.folderId = store.get('fp_folder');
+  let cached = null; try { cached = S.folderId && await idbGet('meta', 'cfg_' + S.folderId); } catch {}
+  if (!cached) return showGate('offlinenone');
+  S.offline = true; S.cfg = normalizeCfg(cached); S.cfgId = null;
+  S.profileId = store.get('fp_profile_' + S.folderId);
+  if (!curProfile()) return showGate('profile');
+  showApp(); recoverLiveSession();
+  if (reason) toast(reason, 5000);
+}
+const fmtBytes = b => b >= 1e9 ? (b / 1e9).toFixed(1) + ' GB' : b >= 1e6 ? Math.round(b / 1e6) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' KB';
+async function updateStorageInfo(){
+  const el = $('#storageinfo'); if (!el || !navigator.storage?.estimate) return;
+  try {
+    const [{ usage = 0, quota = 0 }, persisted] = await Promise.all([navigator.storage.estimate(), navigator.storage.persisted?.() ?? false]);
+    const mine = S.cfg.items.filter(isHere);
+    el.innerHTML = `${mine.length} file${mine.length === 1 ? '' : 's'} saved on this device · using ${fmtBytes(usage)} of about ${fmtBytes(quota)} this browser allows. `
+      + (persisted ? '<span class="ok">Protected from automatic cleanup.</span>'
+                   : '<span class="warn">The browser may clear these copies if the player isn\'t opened for a while — on iPhone, add it to your Home Screen (Share → Add to Home Screen) to keep them.</span>');
+  } catch {}
+}
+async function addLocalFiles(fileList, replaceId){
+  const files = [...fileList].filter(f => /^(video|audio)\//.test(f.type) || VIDEO_EXT.test(f.name) || AUDIO_EXT.test(f.name));
+  if (!files.length) return toast('Pick video or audio files');
+  if (S.offline && !replaceId) return toast('Connect to the internet to add files — each one needs a library number', 5000);
+  try { await navigator.storage?.persist?.(); } catch {}
+  if (replaceId){   // put a cleared copy back, same number
+    toast('Saving on this device…', 60000);
+    try { await idbPut('files', replaceId, files[0]); S.localIds.add(replaceId); toast('Saved — it plays again'); render(); }
+    catch (e){ toast(`Couldn't save on this device: ${e.message}. Storage may be full.`, 6000); }
+    return;
+  }
+  const added = [], dupes = [];
+  for (const [i, f] of files.entries()){
+    if (S.cfg.items.some(it => isHere(it) && it.file === f.name && it.size === f.size)){ dupes.push(f.name); continue; }
+    toast(`Saving ${i + 1} of ${files.length} on this device…`, 120000);
+    const id = 'l' + uid() + uid();
+    try { await idbPut('files', id, f); S.localIds.add(id); }
+    catch (e){ toast(`Couldn't save "${f.name}" on this device: ${e.message}. Storage may be full.`, 6000); continue; }
+    const audio = AUDIO_EXT.test(f.name) || (f.type.startsWith('audio/') && !VIDEO_EXT.test(f.name));
+    added.push({ id, name: f.name, size: f.size, media: audio ? 'audio' : 'video' });
+  }
+  if (!added.length){ if (dupes.length) toast(`Already on this device: ${dupes.join(', ')}`, 5000); return; }
+  const dev = deviceName();
+  const ok = await saveCfg(cfg => { for (const a of added) cfg.items.push({ num: cfg.nextNumber++, type: 'local', id: a.id, title: a.name.replace(/\.[^.]+$/, ''),
+    file: a.name, size: a.size, media: a.media, deviceId: DEVICE_ID, deviceName: dev }); });
+  if (!ok){ for (const a of added){ await idbDel('files', a.id).catch(() => {}); S.localIds.delete(a.id); } return; }
+  toast(`Added ${added.length} file${added.length === 1 ? '' : 's'} on this device${dupes.length ? ` (${dupes.length} already here)` : ''}`, 4000);
+}
+function setLocalURL(url){ if (S.localURL) URL.revokeObjectURL(S.localURL); S.localURL = url; }
+
 function readHashFolder(){
   const h = decodeURIComponent(location.hash);
   const m = h.match(/folder=([\w-]+)/);
@@ -1056,10 +1203,16 @@ function runPendingPlay(){
   if (nums.length) playQueue(nums, 'From catalog');
 }
 window.addEventListener('hashchange', () => { readHashFolder(); runPendingPlay(); });
-async function boot(){
+async function boot(opts = {}){
+  if (S.booted) return; S.booted = true;
   readHashFolder();
   if (CLIENT_ID.startsWith('PASTE')) return showGate('setup');
   if (!('serviceWorker' in navigator)) return showGate('nosw');
+  await loadLocalIndex();
+  if (opts.offline){   // Google sign-in couldn't load: no internet
+    try { await setupSW(); } catch {}
+    return enterOffline("You're offline — files saved on this device can play.");
+  }
   try { await setupSW(); }
   catch (e){ return showGate('swfail', e.message); }
   try {
@@ -1077,8 +1230,10 @@ async function afterSignIn(){
     S.cfgId = await findConfig(S.folderId);
     if (!S.cfgId) S.cfgId = await createConfig(S.folderId, normalizeCfg({}));
     S.cfg = await readConfig(S.cfgId);
+    cacheCfg();
   } catch (e){
     if (e instanceof AuthErr) return showGate('signin');
+    if (!navigator.onLine || e instanceof TypeError) return enterOffline("Couldn't reach Google Drive — showing files saved on this device.");
     return showGate('error', e.message);
   }
   S.profileId = store.get('fp_profile_' + S.folderId);
@@ -1145,6 +1300,7 @@ function resolveLink(link, cfg = S.cfg){
     return { kind: 'url', url: link.url, host };                      // any other website: new tab
   }
   const it = itemByRef(link.ref, cfg);
+  if (it?.type === 'local') return isHere(it) ? { kind: 'item', item: it } : { kind: 'missing', item: it, elsewhere: it.deviceId !== DEVICE_ID };
   return it && !it.missing ? { kind: 'item', item: it } : { kind: 'missing', item: it };
 }
 /* A pasted YouTube or Google Drive file link that isn't in the library still plays in the player. */
@@ -1178,9 +1334,9 @@ function parseLinkInput(text, cfg = S.cfg){
   return { error: 'Use a library number (like 12) or a link starting with https://' };
 }
 const linkStatus = r => !r ? '' : r.kind === 'url' ? `${hostLabel(r.host)} link · opens in a new tab`
-  : r.kind === 'missing' ? '<span class="warn">file removed from Drive</span>'
+  : r.kind === 'missing' ? (r.item?.type === 'local' ? `<span class="warn">${r.elsewhere ? `on ${esc(r.item.deviceName || 'another device')} only` : 'copy cleared from this device'}</span>` : '<span class="warn">file removed from Drive</span>')
   : r.item.virtual ? `${r.item.type === 'youtube' ? 'YouTube' : 'Drive'} link · plays here`
-  : `#${r.item.num}${r.item.media === 'audio' ? ' · audio' : r.item.type === 'youtube' ? ' · YouTube' : ''}`;
+  : `#${r.item.num}${r.item.media === 'audio' ? ' · audio' : r.item.type === 'youtube' ? ' · YouTube' : ''}${r.item.type === 'local' ? ' · on this device' : S.offline ? ' · needs internet' : ''}`;
 function linkInputValue(link){
   const r = resolveLink(link);
   if (!r) return '';
@@ -1457,7 +1613,7 @@ function beginSession(it){
 function heardSeconds(x){
   let ms = x.heard;
   const v = $('#vid');
-  if (x.type === 'drive' && (v.getAttribute('src') || '').includes(encodeURIComponent(x.itemId))){
+  if ((x.type === 'drive' && (v.getAttribute('src') || '').includes(encodeURIComponent(x.itemId))) || (x.type === 'local' && S.localURL && v.getAttribute('src') === S.localURL)){
     let t = 0; for (let i = 0; i < v.played.length; i++) t += v.played.end(i) - v.played.start(i);
     ms = Math.max(ms, t * 1000);
   }
@@ -1844,12 +2000,22 @@ document.addEventListener('click', async e => {
       const it = itemByNum(n); const t = prompt(`Rename #${n}`, it.title); if (!t?.trim()) return;
       saveCfg(cfg => { const x = cfg.items.find(q => q.num === n); if (x) x.title = t.trim(); }); break;
     }
-    case 'remove':
-      if (!confirm(`Remove #${n} from the library? It will also be taken out of every playlist. The number won't be reused.`)) return;
-      saveCfg(cfg => {
+    case 'remove': {
+      const it = itemByNum(n);
+      if (!confirm(`Remove #${n} from the library? It will also be taken out of every playlist. The number won't be reused.${it?.type === 'local' && it.deviceId === DEVICE_ID ? ' The copy saved on this device is deleted too.' : ''}`)) return;
+      const ok = await saveCfg(cfg => {
         cfg.items = cfg.items.filter(q => q.num !== n);
         cfg.profiles.forEach(pr => pr.playlists.forEach(pl => { pl.items = pl.items.filter(x => x !== n); }));
-      }); break;
+      });
+      if (ok && it?.type === 'local' && it.deviceId === DEVICE_ID){ await idbDel('files', it.id).catch(() => {}); S.localIds.delete(it.id); updateStorageInfo(); }
+      break;
+    }
+    case 'localpick': $('#localpick').click(); break;
+    case 'localre': S.reId = b.dataset.id; $('#localre').click(); break;
+    case 'gooffline': enterOffline(''); break;
+    case 'reconnect':
+      if (!navigator.onLine) return toast("Still offline — reconnect to Wi-Fi or mobile data first", 4000);
+      location.reload(); break;
     case 'addyt': await addYouTube($('#yturl').value); break;
     case 'sync': syncFolder(false); break;
     case 'newpl': S.editing = { id: null, name: '', items: [] }; render(); break;
@@ -1919,6 +2085,11 @@ document.addEventListener('click', async e => {
   }
 });
 document.addEventListener('change', e => {
+  if (e.target.id === 'localpick' || e.target.id === 'localre'){
+    const files = e.target.files, re = e.target.id === 'localre' ? S.reId : null;
+    if (files?.length) addLocalFiles(files, re).finally(() => { e.target.value = ''; if (S.tab === 'library') render(); });
+    return;
+  }
   const day = e.target.dataset?.day; if (!day) return;
   const val = e.target.value;
   saveCfg(cfg => { const pr = curProfile(cfg); if (!pr) return; if (val) pr.schedule[day] = val; else delete pr.schedule[day]; })
@@ -1938,6 +2109,6 @@ document.addEventListener('keydown', e => {
 });
 setupVideoEvents();
 </script>
-<script src="https://accounts.google.com/gsi/client" async defer onload="gisLoaded()" onerror="document.getElementById('gate').innerHTML='<p>Could not load Google sign-in. Check your connection and reload.</p>'"></script>
+<script src="https://accounts.google.com/gsi/client" async defer onload="gisLoaded()" onerror="boot({ offline: true })"></script>
 </body>
 </html>
